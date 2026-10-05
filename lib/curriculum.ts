@@ -1,3 +1,22 @@
+import { exercises, type Exercise } from '@/lib/exercises'
+
+export function exercisesForPath(slug: string): Exercise[] {
+  if (slug === 'mixed') return exercises
+  const focus = {
+    'for-of': 'for...of',
+    flatmap: 'flatMap',
+    sort: 'sort',
+    'spread-rest': 'spread',
+    set: 'Set',
+    'map-collection': 'Map',
+    'object-entries': 'Object.entries',
+    'object-from-entries': 'Object.fromEntries',
+    'optional-chaining': '?.',
+    'nullish-coalescing': '??',
+  }[slug] ?? slug
+  return exercises.filter((exercise) => exercise.tags[0] === focus)
+}
+
 export type PathStatus = 'completed' | 'in-progress' | 'available' | 'not-started'
 
 export type ConceptPath = {
@@ -30,27 +49,14 @@ const definitions: Array<[string, string, string, number]> = [
   ['mixed', 'Mixed Practice', 'Choose and combine previously learned concepts.', 20],
 ]
 
-export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, description, total], index) => ({
+export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, description]) => ({
   slug,
   name,
   description,
-  total,
-  completed: index === 0 ? total : index === 1 ? total : index === 2 ? 6 : 0,
-  status: index < 2 ? 'completed' : index === 2 ? 'in-progress' : index === 3 ? 'available' : 'not-started',
+  total: exercisesForPath(slug).length,
+  completed: 0,
+  status: exercisesForPath(slug).length ? 'available' : 'not-started',
 }))
-
-export const filterExercises = [
-  'Emails of active staff',
-  'Products currently in stock',
-  'Orders above a threshold',
-  'Visible notifications',
-  'Approved submissions',
-  'Supported file types',
-  'Available delivery windows',
-  'Eligible team members',
-  'Valid API records',
-  'Final filter challenge',
-]
 
 export const curriculumOrder = conceptPaths.map((path) => path.name)
 

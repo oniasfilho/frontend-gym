@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { ArrowRight, BroomSparkles, ChevronLeft, Circle, CircleCheck, LoaderCircle, Play, RotateCcw, SkipForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { exercises } from '@/lib/exercises'
+import { exercises as allExercises } from '@/lib/exercises'
 import { formatCode } from '@/lib/format-code'
 import { withDeclarations, withoutDeclarations } from '@/lib/shape'
 import { structuralDiff } from '@/lib/diff'
@@ -20,7 +20,7 @@ import { Gutter } from './gutter'
 import { Kbd } from './kbd'
 import { ResultPanel, type RunState } from './result-panel'
 import { TopBar } from './top-bar'
-import { conceptPaths } from '@/lib/curriculum'
+import { conceptPaths, exercisesForPath, type ConceptPath } from '@/lib/curriculum'
 import { ConceptOverview, PathCompletion, PathNavigator, type CurriculumView } from './curriculum-views'
 import { CommandPalette, LearningConstraints, type CommandAction } from './learning-controls'
 
@@ -34,8 +34,16 @@ type InputSide = 'A' | 'B'
 type Overrides = Record<string, { A?: unknown; B?: unknown }>
 
 export function Workspace() {
-  const progress = useProgress(exercises.length)
-  const { index, drafts, view, hydrated, setIndex, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved } = progress
+  const progress = useProgress(allExercises.length)
+  const { drafts, view, hydrated, setIndex, selectPath, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved } = progress
+  const paths: ConceptPath[] = conceptPaths.map((path) => {
+    const lessons = exercisesForPath(path.slug)
+    const completed = lessons.filter((item) => isSolved(item.id, drafts[item.id] ?? item.starter)).length
+    return { ...path, completed, status: completed > 0 && completed === lessons.length ? 'completed' : completed > 0 ? 'in-progress' : lessons.length ? 'available' : 'not-started' }
+  })
+  const activePath = paths.find((path) => path.slug === progress.pathSlug && path.total > 0) ?? paths[paths.length - 1]
+  const exercises = exercisesForPath(activePath.slug)
+  const index = Math.min(Math.max(progress.index, 0), exercises.length - 1)
   const exercise = exercises[index]
   const code = drafts[exercise.id] ?? exercise.starter
   const solvedNow = isSolved(exercise.id, code)
@@ -156,7 +164,7 @@ export function Workspace() {
     if (!hydrated || migrated.current) return
     migrated.current = true
     const stored = draftsRef.current
-    for (const item of exercises) {
+    for (const item of allExercises) {
       const draft = stored[item.id]
       if (!item.declarations || !draft) continue
       if (draft === withDeclarations(item.starter, item.declarations)) resetDraft(item.id)
@@ -202,7 +210,7 @@ export function Workspace() {
   const goNext = useCallback(() => {
     if (index >= exercises.length - 1) finishSet()
     else goTo(index + 1)
-  }, [finishSet, goTo, index])
+  }, [exercises.length, finishSet, goTo, index])
 
   const goPrev = useCallback(() => {
     if (index > 0) goTo(index - 1)
@@ -225,7 +233,7 @@ export function Workspace() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (view === 'summary' || event.defaultPrevented) return
+      if (view === 'summary' || curriculumView || commandOpen || event.defaultPrevented || event.isComposing || event.keyCode === 229) return
       if (event.altKey && event.key === 'ArrowRight') {
         event.preventDefault()
         goNext()
@@ -243,7 +251,7 @@ export function Workspace() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [execute, goNext, goPrev, next, view])
+  }, [commandOpen, curriculumView, execute, goNext, goPrev, next, view])
 
   const updateInput = useCallback(
     (side: InputSide, value: unknown) => {
@@ -431,6 +439,7 @@ export function Workspace() {
   const topBar = (
     <TopBar
       exercise={exercise}
+      pathName={activePath.name}
       position={index}
       total={exercises.length}
       solved={solvedNow}
@@ -440,19 +449,24 @@ export function Workspace() {
       onSelect={goTo}
       onResetProgress={clearProgress}
       onOpenPaths={() => setCurriculumView({ kind: 'navigator' })}
-      onOpenConcept={() => setCurriculumView({ kind: 'concept', path: conceptPaths[2] })}
+      onOpenConcept={() => setCurriculumView({ kind: 'concept', path: activePath })}
       onOpenCommands={() => setCommandOpen(true)}
     />
   )
 
-  const openFilterOverview = () => setCurriculumView({ kind: 'concept', path: conceptPaths[2] })
-  const startConceptExercise = (exerciseIndex: number) => {
+  const openActiveOverview = () => setCurriculumView({ kind: 'concept', path: activePath })
+  const startConceptExercise = (path: ConceptPath, exerciseIndex: number) => {
+    const lessons = exercisesForPath(path.slug)
+    if (!lessons[exerciseIndex]) return
+    stopRun()
+    setFormatError(null)
+    setMobilePane('code')
+    selectPath(path.slug, exerciseIndex)
     setCurriculumView(null)
-    goTo(Math.min(exerciseIndex, exercises.length - 1))
   }
   const commandActions: CommandAction[] = [
     { label: 'Go to path navigator', group: 'Navigation', action: () => setCurriculumView({ kind: 'navigator' }) },
-    { label: 'Open filter concept', group: 'Navigation', action: openFilterOverview },
+    { label: `Open ${activePath.name} concept`, group: 'Navigation', action: openActiveOverview },
     { label: 'Run solution', group: 'Exercise', shortcut: <Kbd mod>Enter</Kbd>, action: () => void execute() },
     { label: 'Next exercise', group: 'Exercise', action: goNext },
     { label: 'Previous exercise', group: 'Exercise', action: goPrev },
@@ -461,13 +475,17 @@ export function Workspace() {
   ]
 
   if (curriculumView?.kind === 'navigator') {
-    return <PathNavigator onBack={() => setCurriculumView(null)} onOpen={(path) => setCurriculumView({ kind: 'concept', path })} />
+    return <PathNavigator paths={paths} onBack={() => setCurriculumView(null)} onOpen={(path) => setCurriculumView({ kind: 'concept', path })} />
   }
   if (curriculumView?.kind === 'concept') {
-    return <ConceptOverview path={curriculumView.path} onBack={() => setCurriculumView({ kind: 'navigator' })} onStart={startConceptExercise} />
+    const path = paths.find((item) => item.slug === curriculumView.path.slug)!
+    return <ConceptOverview path={path} isSolved={(id) => {
+      const item = allExercises.find((exercise) => exercise.id === id)!
+      return isSolved(id, drafts[id] ?? item.starter)
+    }} onBack={() => setCurriculumView({ kind: 'navigator' })} onStart={(index) => startConceptExercise(path, index)} />
   }
   if (curriculumView?.kind === 'completion') {
-    return <PathCompletion path={curriculumView.path} onNavigator={() => setCurriculumView({ kind: 'navigator' })} onRepeat={openFilterOverview} onNext={() => setCurriculumView({ kind: 'concept', path: conceptPaths[3] })} />
+    return <PathCompletion path={curriculumView.path} onNavigator={() => setCurriculumView({ kind: 'navigator' })} onRepeat={openActiveOverview} onNext={() => setCurriculumView({ kind: 'concept', path: conceptPaths[3] })} />
   }
 
   if (view === 'summary') {
