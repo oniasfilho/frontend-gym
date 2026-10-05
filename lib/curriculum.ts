@@ -1,26 +1,13 @@
-import { exercises, type Exercise } from '@/lib/exercises'
+import { exercises, type Exercise, type PathSlug } from '@/lib/exercises'
 
 export function exercisesForPath(slug: string): Exercise[] {
-  if (slug === 'mixed') return exercises
-  const focus = {
-    'for-of': 'for...of',
-    flatmap: 'flatMap',
-    sort: 'sort',
-    'spread-rest': 'spread',
-    set: 'Set',
-    'map-collection': 'Map',
-    'object-entries': 'Object.entries',
-    'object-from-entries': 'Object.fromEntries',
-    'optional-chaining': '?.',
-    'nullish-coalescing': '??',
-  }[slug] ?? slug
-  return exercises.filter((exercise) => exercise.tags[0] === focus)
+  return exercises.filter((exercise) => exercise.path === slug)
 }
 
 export type PathStatus = 'completed' | 'in-progress' | 'available' | 'not-started'
 
 export type ConceptPath = {
-  slug: string
+  slug: PathSlug
   name: string
   description: string
   total: number
@@ -28,37 +15,52 @@ export type ConceptPath = {
   status: PathStatus
 }
 
-const definitions: Array<[string, string, string, number]> = [
-  ['for-of', 'for...of', 'Fundamental explicit iteration.', 6],
-  ['map', 'map', 'Transform every item in an array.', 10],
-  ['filter', 'filter', 'Select items matching a condition.', 10],
-  ['find', 'find', 'Return the first matching item.', 6],
-  ['some', 'some', 'Check whether any item matches.', 5],
-  ['every', 'every', 'Check whether all items match.', 5],
-  ['reduce', 'reduce', 'Accumulate values into another structure.', 8],
-  ['flatmap', 'flatMap', 'Transform and flatten results.', 6],
-  ['sort', 'sort / toSorted', 'Order collections without surprises.', 6],
-  ['destructuring', 'destructuring', 'Extract values from structures.', 6],
-  ['spread-rest', 'spread / rest', 'Copy, combine, and collect values.', 6],
-  ['set', 'Set', 'Work with unique-value collections.', 6],
-  ['map-collection', 'Map', 'Work with key/value collections.', 6],
-  ['object-entries', 'Object.entries', 'Convert objects into iterable entries.', 6],
-  ['object-from-entries', 'Object.fromEntries', 'Build objects from entry pairs.', 6],
-  ['optional-chaining', 'optional chaining', 'Safely access nullable structures.', 5],
-  ['nullish-coalescing', 'nullish coalescing', 'Fallback only for nullish values.', 5],
-  ['mixed', 'Mixed Practice', 'Choose and combine previously learned concepts.', 20],
+const definitions: Array<[PathSlug, string, string]> = [
+  ['for-of', 'for...of', 'Fundamental explicit iteration.'],
+  ['map', 'map', 'Transform every item in an array.'],
+  ['filter', 'filter', 'Select items matching a condition.'],
+  ['find', 'find', 'Return the first matching item.'],
+  ['some', 'some', 'Check whether any item matches.'],
+  ['every', 'every', 'Check whether all items match.'],
+  ['reduce', 'reduce', 'Accumulate values into another structure.'],
+  ['flatmap', 'flatMap', 'Transform and flatten results.'],
+  ['sort', 'sort / toSorted', 'Order collections without surprises.'],
+  ['destructuring', 'destructuring', 'Extract values from structures.'],
+  ['spread-rest', 'spread / rest', 'Copy, combine, and collect values.'],
+  ['set', 'Set', 'Work with unique-value collections.'],
+  ['map-collection', 'Map', 'Work with key/value collections.'],
+  ['object-entries', 'Object.entries', 'Convert objects into iterable entries.'],
+  ['object-from-entries', 'Object.fromEntries', 'Build objects from entry pairs.'],
+  ['optional-chaining', 'optional chaining', 'Safely access nullable structures.'],
+  ['nullish-coalescing', 'nullish coalescing', 'Fallback only for nullish values.'],
+  ['mixed', 'Mixed Practice', 'Choose and combine previously learned concepts.'],
 ]
 
-export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, description]) => ({
-  slug,
-  name,
-  description,
-  total: exercisesForPath(slug).length,
-  completed: 0,
-  status: exercisesForPath(slug).length ? 'available' : 'not-started',
-}))
+export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, description]) => {
+  const total = exercisesForPath(slug).length
+  return { slug, name, description, total, completed: 0, status: total ? 'available' : 'not-started' }
+})
 
 export const curriculumOrder = conceptPaths.map((path) => path.name)
+
+const pathNames = new Map<string, string>(definitions.map(([slug, name]) => [slug, name]))
+
+export function conceptLabel(concept: string) {
+  return pathNames.get(concept) ?? concept
+}
+
+export function focusOf(exercise: Exercise) {
+  return exercise.path === 'mixed' ? 'Mixed Practice' : conceptLabel(exercise.path)
+}
+
+export function supportOf(exercise: Exercise) {
+  return exercise.concepts.filter((concept) => concept !== exercise.path).map(conceptLabel)
+}
+
+export function nextPathAfter(slug: string) {
+  const index = conceptPaths.findIndex((path) => path.slug === slug)
+  return conceptPaths.slice(index + 1).find((path) => path.total > 0)
+}
 
 export function prerequisitesFor(path: ConceptPath) {
   const index = conceptPaths.findIndex((item) => item.slug === path.slug)

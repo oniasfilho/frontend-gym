@@ -20,7 +20,7 @@ import { Gutter } from './gutter'
 import { Kbd } from './kbd'
 import { ResultPanel, type RunState } from './result-panel'
 import { TopBar } from './top-bar'
-import { conceptPaths, exercisesForPath, type ConceptPath } from '@/lib/curriculum'
+import { conceptPaths, exercisesForPath, focusOf, nextPathAfter, supportOf, type ConceptPath } from '@/lib/curriculum'
 import { ConceptOverview, PathCompletion, PathNavigator, type CurriculumView } from './curriculum-views'
 import { CommandPalette, LearningConstraints, type CommandAction } from './learning-controls'
 
@@ -103,7 +103,7 @@ export function Workspace() {
         return
       }
       const diffs = outcome.ok ? structuralDiff(expectedResult.value, outcome.value) : []
-      const focusViolation = exercise.tags[0] === 'filter' && /\.reduce\s*\(/.test(source)
+      const focusViolation = exercise.path === 'filter' && /\.reduce\s*\(/.test(source)
       if (outcome.ok && diffs.length === 0 && !hasOverride && !focusViolation) markSolved(exercise.id, source)
       setRun({ status: 'done', outcome, diffs, code: source })
     },
@@ -222,7 +222,7 @@ export function Workspace() {
     setIndex(index)
   }, [index, setIndex, stopRun])
 
-  const focusViolation = exercise.tags[0] === 'filter' && /\.reduce\s*\(/.test(code) ? 'reduce' : null
+  const focusViolation = exercise.path === 'filter' && /\.reduce\s*\(/.test(code) ? 'reduce' : null
   const runMatches = run.status === 'done' && run.outcome.ok && !run.note && run.diffs.length === 0 && run.code === code && !focusViolation
   const canAdvance = (!hasOverride && runMatches) || solvedNow
   const lastExercise = index === exercises.length - 1
@@ -373,7 +373,7 @@ export function Workspace() {
               Types
             </Button>
           )}
-          <LearningConstraints focus={exercise.tags[0]} support={exercise.tags.slice(1)} />
+          <LearningConstraints focus={focusOf(exercise)} support={supportOf(exercise)} />
           <Button
             variant="ghost"
             size="xs"
@@ -424,7 +424,7 @@ export function Workspace() {
       <ResultPanel
         state={run}
         expected={expectedResult.value}
-        focus={exercise.tags[0]}
+        focus={focusOf(exercise)}
         focusViolation={focusViolation}
         isStale={isStale}
         approach={exercise.approach}
@@ -485,7 +485,11 @@ export function Workspace() {
     }} onBack={() => setCurriculumView({ kind: 'navigator' })} onStart={(index) => startConceptExercise(path, index)} />
   }
   if (curriculumView?.kind === 'completion') {
-    return <PathCompletion path={curriculumView.path} onNavigator={() => setCurriculumView({ kind: 'navigator' })} onRepeat={openActiveOverview} onNext={() => setCurriculumView({ kind: 'concept', path: conceptPaths[3] })} />
+    const completedPath = curriculumView.path
+    const upcoming = nextPathAfter(completedPath.slug)
+    const nextPath = upcoming ? paths.find((path) => path.slug === upcoming.slug) ?? upcoming : undefined
+    const practiced = [...new Set(exercisesForPath(completedPath.slug).map((lesson) => lesson.stage ?? lesson.title))]
+    return <PathCompletion path={completedPath} practiced={practiced} nextPath={nextPath} onNavigator={() => setCurriculumView({ kind: 'navigator' })} onRepeat={() => setCurriculumView({ kind: 'concept', path: completedPath })} onNext={() => nextPath && setCurriculumView({ kind: 'concept', path: nextPath })} />
   }
 
   if (view === 'summary') {

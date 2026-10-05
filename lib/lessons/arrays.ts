@@ -26,7 +26,7 @@ export const arrayLessons = [
   sort('sort-products-by-price', 'Products by price', 'Return the original product objects ordered by price ascending in a new array. Do not mutate input.', products, null,
     (input) => input.toSorted((a, b) => a.price - b.price), 'return input.toSorted((a, b) => a.price - b.price)'),
   sort('sort-users-by-name', 'Users by name', 'Return a new array of users ordered by name alphabetically. Compare strings with localeCompare; keep the objects unchanged.', [users[2], users[0], users[1]], null,
-    (input) => input.toSorted((a, b) => a.name.localeCompare(b.name)), 'return input.toSorted((a, b) => a.name.localeCompare(b.name)'),
+    (input) => input.toSorted((a, b) => a.name.localeCompare(b.name)), 'return input.toSorted((a, b) => a.name.localeCompare(b.name))'),
   sort('sort-score-then-name', 'Score, then name', 'Return a new array ordered by score descending. When scores tie, order names alphabetically. Do not mutate input.', [{ name: 'Carla', score: 90 }, { name: 'Bruno', score: 75 }, { name: 'Ana', score: 90 }], null,
     (input) => input.toSorted((a, b) => { if (a.score !== b.score) return b.score - a.score; return a.name.localeCompare(b.name) }), 'return input.toSorted((a, b) => {\n  if (a.score !== b.score) return b.score - a.score\n  return a.name.localeCompare(b.name)\n})', { difficulty: 'medium' }),
 ]

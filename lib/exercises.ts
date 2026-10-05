@@ -1,5 +1,13 @@
 import { define, type Exercise } from '@/lib/exercise-model'
-export type { Exercise, Difficulty } from '@/lib/exercise-model'
+import { iterationLessons } from '@/lib/lessons/iteration'
+import { queryLessons } from '@/lib/lessons/queries'
+import { reduceLessons } from '@/lib/lessons/reduce'
+import { arrayLessons } from '@/lib/lessons/arrays'
+import { syntaxLessons } from '@/lib/lessons/syntax'
+import { collectionLessons } from '@/lib/lessons/collections'
+import { entryLessons } from '@/lib/lessons/entries'
+import { nullableLessons } from '@/lib/lessons/nullable'
+export type { Exercise, Difficulty, PathSlug } from '@/lib/exercise-model'
 
 export const mixedExercises: Exercise[] = [
   define({
@@ -245,3 +253,16 @@ return Object.entries(buckets)
     reference: (txs, { includeStatuses }) => Object.entries(txs.filter((t) => includeStatuses.includes(t.status)).reduce<Record<string, { total: number; count: number }>>((acc, { date, amount }) => { const month = date.slice(0, 7); const bucket = acc[month] ?? { total: 0, count: 0 }; acc[month] = { total: bucket.total + amount, count: bucket.count + 1 }; return acc }, {})).sort(([a], [b]) => a.localeCompare(b)).map(([month, { total, count }]) => ({ month, total, count })),
   }),
 ]
+
+export const dedicatedExercises: Exercise[] = [
+  ...iterationLessons,
+  ...queryLessons,
+  ...reduceLessons,
+  ...arrayLessons,
+  ...syntaxLessons,
+  ...collectionLessons,
+  ...entryLessons,
+  ...nullableLessons,
+]
+
+export const exercises: Exercise[] = [...dedicatedExercises, ...mixedExercises]

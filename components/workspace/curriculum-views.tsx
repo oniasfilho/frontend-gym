@@ -3,7 +3,7 @@
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, LockKeyhole } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { exercisesForPath, type ConceptPath } from '@/lib/curriculum'
+import { exercisesForPath, supportOf, type ConceptPath } from '@/lib/curriculum'
 import { cn } from '@/lib/utils'
 
 export type CurriculumView = { kind: 'navigator' } | { kind: 'concept'; path: ConceptPath } | { kind: 'completion'; path: ConceptPath }
@@ -58,7 +58,7 @@ export function PathNavigator({ paths, onOpen, onBack }: { paths: ConceptPath[];
 export function ConceptOverview({ path, isSolved, onBack, onStart }: { path: ConceptPath; isSolved: (id: string) => boolean; onBack: () => void; onStart: (index: number) => void }) {
   const lessons = exercisesForPath(path.slug)
   const nextIndex = Math.max(0, lessons.findIndex((lesson) => !isSolved(lesson.id)))
-  const supportingConcepts = [...new Set(lessons.flatMap((lesson) => lesson.tags.slice(1)))]
+  const supportingConcepts = [...new Set(lessons.flatMap(supportOf))]
 
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -95,8 +95,27 @@ function KnowledgeList({ title, items, muted }: { title: string; items: string[]
   return <section className="rounded-lg border bg-card p-3"><h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">{title}</h2><ul className={cn('flex flex-col gap-1.5 text-sm', muted && 'text-muted-foreground')}>{items.length ? items.map((item) => <li key={item} className="flex items-center gap-2"><span className="text-muted-foreground">—</span><code className="font-mono text-xs">{item}</code></li>) : <li className="text-muted-foreground">None listed.</li>}</ul></section>
 }
 
-export function PathCompletion({ path, onNavigator, onNext, onRepeat }: { path: ConceptPath; onNavigator: () => void; onNext: () => void; onRepeat: () => void }) {
-  return <div className="flex h-dvh flex-col bg-background"><CurriculumHeader title={`${path.name} completed`} eyebrow="Data Transformation" onBack={onNavigator} /><main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 p-6"><div className="border-b pb-5"><span className="font-mono text-xs text-success">PATH COMPLETE · {path.total} / {path.total}</span><h1 className="mt-2 font-mono text-2xl font-semibold">{path.name} completed</h1><p className="mt-2 text-sm text-muted-foreground">You completed this focused path. Completion means the output matched and the intended learning constraint was satisfied.</p></div><KnowledgeList title="You practiced" items={['selection predicates', 'boolean conditions', 'preserving collection order', 'combining selection with earlier concepts']} /><div className="rounded-lg border bg-card p-4"><span className="font-mono text-xs text-muted-foreground">NEXT PATH</span><h2 className="mt-1 font-mono text-lg">find</h2><p className="text-sm text-muted-foreground">Return the first matching item.</p></div><div className="flex flex-wrap gap-2"><Button onClick={onNext}>Continue to find<ArrowRight data-icon="inline-end" /></Button><Button variant="outline" onClick={onRepeat}>Repeat {path.name}</Button><Button variant="ghost" onClick={onNavigator}>Open path navigator</Button></div></main></div>
+export function PathCompletion({ path, practiced, nextPath, onNavigator, onNext, onRepeat }: { path: ConceptPath; practiced: string[]; nextPath?: ConceptPath; onNavigator: () => void; onNext: () => void; onRepeat: () => void }) {
+  const focused = path.slug !== 'mixed'
+  return (
+    <div className="flex h-dvh flex-col bg-background">
+      <CurriculumHeader title={`${path.name} completed`} eyebrow="Data Transformation" onBack={onNavigator} />
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 p-6">
+        <div className="border-b pb-5">
+          <span className="font-mono text-xs text-success">PATH COMPLETE · {path.total} / {path.total}</span>
+          <h1 className="mt-2 font-mono text-2xl font-semibold">{path.name} completed</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{focused ? 'You completed this focused path. Completion means the output matched and the intended learning constraint was satisfied.' : 'You combined previously learned concepts to solve realistic transformations.'}</p>
+        </div>
+        <KnowledgeList title="You practiced" items={practiced} />
+        {nextPath && <div className="rounded-lg border bg-card p-4"><span className="font-mono text-xs text-muted-foreground">NEXT PATH</span><h2 className="mt-1 font-mono text-lg">{nextPath.name}</h2><p className="text-sm text-muted-foreground">{nextPath.description}</p></div>}
+        <div className="flex flex-wrap gap-2">
+          {nextPath && <Button onClick={onNext}>Continue to {nextPath.name}<ArrowRight data-icon="inline-end" /></Button>}
+          <Button variant={nextPath ? 'outline' : 'default'} onClick={onRepeat}>Repeat {path.name}</Button>
+          <Button variant="ghost" onClick={onNavigator}>Open path navigator</Button>
+        </div>
+      </main>
+    </div>
+  )
 }
 
 function CurriculumHeader({ title, eyebrow, onBack }: { title: string; eyebrow: string; onBack: () => void }) {
