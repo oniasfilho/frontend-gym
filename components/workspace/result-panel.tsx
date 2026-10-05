@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, CircleX, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleX, Lightbulb, LoaderCircle, TriangleAlert } from 'lucide-react'
 import type { DiffEntry } from '@/lib/diff'
 import { formatValue } from '@/lib/diff'
 import type { Peek, RunOutcome } from '@/lib/runner'
@@ -156,6 +156,8 @@ export function ResultPanel({
   peekSample,
   successTitle = 'Correct',
   successHint,
+  focus,
+  focusViolation,
 }: {
   state: RunState
   expected: unknown
@@ -165,6 +167,8 @@ export function ResultPanel({
   peekSample: string
   successTitle?: string
   successHint?: string
+  focus?: string
+  focusViolation?: string | null
 }) {
   const [tab, setTab] = useState<Tab>('result')
   const lastPeeks = useRef<Peek[]>([])
@@ -208,6 +212,8 @@ export function ResultPanel({
             peekSample={peekSample}
             successTitle={successTitle}
             successHint={successHint}
+            focus={focus}
+            focusViolation={focusViolation}
           />
         ) : (
           <PeekView peeks={peeks} dimmed={compileFailed} />
@@ -226,6 +232,8 @@ function ResultView({
   peekSample,
   successTitle,
   successHint,
+  focus,
+  focusViolation,
 }: {
   state: RunState
   expected: unknown
@@ -235,6 +243,8 @@ function ResultView({
   peekSample: string
   successTitle: string
   successHint?: string
+  focus?: string
+  focusViolation?: string | null
 }) {
   if (state.status === 'idle') {
     return (
@@ -301,6 +311,24 @@ function ResultView({
   }
 
   const correct = diffs.length === 0
+
+  if (correct && focusViolation && !isStale) {
+    return (
+      <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+          <Lightbulb className="text-warning" aria-hidden="true" />
+          <span className="text-sm font-medium">Correct output</span>
+          <span className="font-mono text-xs text-warning">learning constraint not satisfied</span>
+        </div>
+        <div className="flex flex-1 flex-col justify-center gap-3 p-5">
+          <p className="text-sm text-muted-foreground">The expected output matched. This exercise is focused on <code className="font-mono text-foreground">{focus}()</code>, but your solution appears to use <code className="font-mono text-warning">{focusViolation}()</code>.</p>
+          <p className="text-sm text-muted-foreground">Try solving it with the intended transformation. This is instructional feedback, not a compiler error.</p>
+          <div className="flex gap-2"><button type="button" className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted">Review focus</button><button type="button" className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">Try again</button></div>
+        </div>
+        <Logs logs={outcome.logs} />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
