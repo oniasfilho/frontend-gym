@@ -7,13 +7,14 @@ const STORAGE_KEY = 'reshape:progress:v1'
 type View = 'exercise' | 'summary'
 
 type Progress = {
+  pathSlug: string
   index: number
   drafts: Record<string, string>
   solved: Record<string, string | true>
   view: View
 }
 
-const EMPTY: Progress = { index: 0, drafts: {}, solved: {}, view: 'exercise' }
+const EMPTY: Progress = { pathSlug: 'mixed', index: 0, drafts: {}, solved: {}, view: 'exercise' }
 
 function read(): Progress {
   try {
@@ -26,7 +27,8 @@ function read(): Progress {
       else if (typeof value === 'string') solved[id] = value
     }
     return {
-      index: typeof parsed.index === 'number' ? parsed.index : 0,
+      pathSlug: typeof parsed.pathSlug === 'string' ? parsed.pathSlug : 'mixed',
+      index: typeof parsed.index === 'number' && Number.isInteger(parsed.index) ? parsed.index : 0,
       drafts: parsed.drafts && typeof parsed.drafts === 'object' ? parsed.drafts : {},
       solved,
       view: parsed.view === 'summary' ? 'summary' : 'exercise',
@@ -55,6 +57,10 @@ export function useProgress(total: number) {
   }, [progress, hydrated])
 
   const setIndex = useCallback((index: number) => setProgress((p) => ({ ...p, index, view: 'exercise' })), [])
+
+  const selectPath = useCallback((pathSlug: string, index: number) => {
+    setProgress((p) => ({ ...p, pathSlug, index, view: 'exercise' }))
+  }, [])
 
   const openSummary = useCallback(() => setProgress((p) => ({ ...p, view: 'summary' })), [])
 
@@ -91,5 +97,5 @@ export function useProgress(total: number) {
     [progress.solved],
   )
 
-  return { ...progress, hydrated, setIndex, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved }
+  return { ...progress, hydrated, selectPath, setIndex, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved }
 }

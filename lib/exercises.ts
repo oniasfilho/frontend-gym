@@ -1,49 +1,21 @@
-import { describeInputs, type Param } from '@/lib/shape'
+import { define, type Exercise } from '@/lib/exercise-model'
+import { iterationLessons } from '@/lib/lessons/iteration'
+import { queryLessons } from '@/lib/lessons/queries'
+import { reduceLessons } from '@/lib/lessons/reduce'
+import { arrayLessons } from '@/lib/lessons/arrays'
+import { syntaxLessons } from '@/lib/lessons/syntax'
+import { collectionLessons } from '@/lib/lessons/collections'
+import { entryLessons } from '@/lib/lessons/entries'
+import { nullableLessons } from '@/lib/lessons/nullable'
+export type { Exercise, Difficulty, PathSlug } from '@/lib/exercise-model'
 
-export type Difficulty = 'easy' | 'medium' | 'hard'
-
-export type Exercise = {
-  id: string
-  title: string
-  difficulty: Difficulty
-  tags: string[]
-  prompt: string
-  approach: string
-  solution: string
-  labels: { A: string; B: string }
-  A: unknown
-  B: unknown
-  expected: unknown
-  starter: string
-  declarations: string
-  params: [Param, Param]
-  reference: (a: unknown, b: unknown) => unknown
-}
-
-type ExerciseDefinition<TA, TB> = Omit<Exercise, 'expected' | 'starter' | 'declarations' | 'A' | 'B' | 'params' | 'reference'> & {
-  A: TA
-  B: TB
-  reference: (A: TA, B: TB) => unknown
-}
-
-function define<TA, TB>({ reference, ...rest }: ExerciseDefinition<TA, TB>): Exercise {
-  const described = describeInputs(rest.labels.A, rest.A, rest.labels.B, rest.B)
-  return {
-    ...rest,
-    params: described.params,
-    reference: (a, b) => reference(a as TA, b as TB),
-    expected: reference(structuredClone(rest.A), structuredClone(rest.B)),
-    starter: described.starter,
-    declarations: described.declarations,
-  }
-}
-
-export const exercises: Exercise[] = [
+export const mixedExercises: Exercise[] = [
   define({
     id: 'active-emails',
     title: 'Emails of active staff',
     difficulty: 'easy',
-    tags: ['filter', 'map', 'includes'],
+    path: 'mixed',
+    concepts: ['filter', 'map', 'includes'],
     prompt: 'Return the emails of users who are active and whose role is in the allowed list, in original order.',
     approach: 'Keep the active users whose role is allowed, then take each email.',
     solution: `return users
@@ -64,7 +36,8 @@ export const exercises: Exercise[] = [
     id: 'catalog-by-sku',
     title: 'Index catalog by SKU',
     difficulty: 'easy',
-    tags: ['Object.fromEntries', 'spread', '??'],
+    path: 'mixed',
+    concepts: ['object-from-entries', 'map', 'destructuring', 'nullish-coalescing'],
     prompt: 'Build an object keyed by SKU. Each value keeps name and price, where price is replaced by the override in B when one exists.',
     approach: 'Key an object by SKU, and use the override price when one exists.',
     solution: `return Object.fromEntries(
@@ -84,7 +57,8 @@ export const exercises: Exercise[] = [
     id: 'flag-transactions',
     title: 'Flag suspicious transactions',
     difficulty: 'easy',
-    tags: ['filter', 'some', 'destructuring'],
+    path: 'mixed',
+    concepts: ['filter', 'some', 'map', 'includes', 'destructuring'],
     prompt: 'Return the ids of transactions whose amount exceeds maxAmount, or whose country is blocked, or that contain any blocked tag.',
     approach: 'Keep a transaction when its amount, country, or any tag breaks a rule, then return the id.',
     solution: `return transactions
@@ -111,7 +85,8 @@ export const exercises: Exercise[] = [
     id: 'order-totals',
     title: 'Order totals per customer',
     difficulty: 'medium',
-    tags: ['reduce', 'find', 'nested'],
+    path: 'mixed',
+    concepts: ['reduce', 'find', 'optional-chaining', 'nullish-coalescing', 'nested iteration', 'destructuring'],
     prompt: 'Sum the value of all items (qty × product price) per customerId. Return an object { [customerId]: total }.',
     approach: 'For each order, sum qty times the product price, then add that into the customer total.',
     solution: `return orders.reduce<Record<string, number>>((totals, order) => {
@@ -140,7 +115,8 @@ export const exercises: Exercise[] = [
     id: 'user-permissions',
     title: 'Resolve user permissions',
     difficulty: 'medium',
-    tags: ['flatMap', 'Set', 'sort'],
+    path: 'mixed',
+    concepts: ['map', 'flatmap', 'find', 'set', 'spread-rest', 'sort', 'optional-chaining', 'nullish-coalescing', 'destructuring'],
     prompt: 'For each user, collect the permissions of all their roles. Remove duplicates and sort alphabetically. Return [{ name, permissions }].',
     approach: 'Gather the permissions of every role, drop duplicates, and sort them.',
     solution: `return users.map((user) => ({
@@ -166,7 +142,8 @@ export const exercises: Exercise[] = [
     id: 'normalize-api',
     title: 'Flatten a JSON:API response',
     difficulty: 'medium',
-    tags: ['destructuring', 'map', 'find'],
+    path: 'mixed',
+    concepts: ['destructuring', 'map', 'find', 'optional-chaining'],
     prompt: 'Flatten each item in A.data into { id, title, status, author } where author is the name from the matching entry in B.',
     approach: 'Lift id, title, and status off each article, and look up the author name in B.',
     solution: `return response.data.map((article) => ({
@@ -191,7 +168,8 @@ export const exercises: Exercise[] = [
     id: 'config-diff',
     title: 'Diff two configs',
     difficulty: 'medium',
-    tags: ['Object.keys', 'filter', 'in'],
+    path: 'mixed',
+    concepts: ['Object.keys', 'filter', 'in', 'sort'],
     prompt: 'Compare config A (current) with B (next). Return { added, removed, changed } — arrays of keys, each sorted alphabetically.',
     approach: 'Split the keys into added, removed, and changed, and sort each list.',
     solution: `return {
@@ -208,7 +186,8 @@ export const exercises: Exercise[] = [
     id: 'stock-by-warehouse',
     title: 'Stock per warehouse',
     difficulty: 'medium',
-    tags: ['reduce', 'Object.entries', 'lookup'],
+    path: 'mixed',
+    concepts: ['filter', 'reduce', 'nullish-coalescing', 'destructuring', 'lookup'],
     prompt: 'Total the quantity per warehouse, using the warehouse display name from B as the key. Ignore rows with qty ≤ 0.',
     approach: 'Drop rows with qty of 0 or less, then sum qty under each warehouse display name.',
     solution: `return stockRows.filter((row) => row.qty > 0).reduce<Record<string, number>>((totals, row) => {
@@ -227,7 +206,8 @@ export const exercises: Exercise[] = [
     id: 'feature-access',
     title: 'Feature access matrix',
     difficulty: 'hard',
-    tags: ['every', 'Object.entries', 'Object.fromEntries'],
+    path: 'mixed',
+    concepts: ['every', 'object-entries', 'object-from-entries', 'map', 'filter', 'destructuring', 'includes'],
     prompt: 'For each account, list the features it can use: a feature is available when the account has every flag it requires. Return { [accountId]: features[] } keeping B’s feature order.',
     approach: 'A feature is available when the account has every flag it requires. Keep B’s feature order.',
     solution: `return Object.fromEntries(
@@ -249,7 +229,8 @@ export const exercises: Exercise[] = [
     id: 'monthly-revenue',
     title: 'Monthly revenue summary',
     difficulty: 'hard',
-    tags: ['reduce', 'Object.entries', 'sort'],
+    path: 'mixed',
+    concepts: ['filter', 'reduce', 'object-entries', 'sort', 'map', 'destructuring', 'nullish-coalescing', 'includes', 'slice'],
     prompt: 'Only include transactions whose status is in B.includeStatuses. Group by month (YYYY-MM) and return [{ month, total, count }] sorted by month ascending.',
     approach: 'Keep the statuses listed in B, group by YYYY-MM, and sort the months ascending.',
     solution: `const buckets = transactions
@@ -272,3 +253,16 @@ return Object.entries(buckets)
     reference: (txs, { includeStatuses }) => Object.entries(txs.filter((t) => includeStatuses.includes(t.status)).reduce<Record<string, { total: number; count: number }>>((acc, { date, amount }) => { const month = date.slice(0, 7); const bucket = acc[month] ?? { total: 0, count: 0 }; acc[month] = { total: bucket.total + amount, count: bucket.count + 1 }; return acc }, {})).sort(([a], [b]) => a.localeCompare(b)).map(([month, { total, count }]) => ({ month, total, count })),
   }),
 ]
+
+export const dedicatedExercises: Exercise[] = [
+  ...iterationLessons,
+  ...queryLessons,
+  ...reduceLessons,
+  ...arrayLessons,
+  ...syntaxLessons,
+  ...collectionLessons,
+  ...entryLessons,
+  ...nullableLessons,
+]
+
+export const exercises: Exercise[] = [...dedicatedExercises, ...mixedExercises]

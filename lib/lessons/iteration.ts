@@ -1,0 +1,46 @@
+import { forPath, users } from './define'
+
+const loop = forPath('for-of', 'Visit each value explicitly. Update a result inside the loop, then return it after the loop finishes.')
+const map = forPath('map', 'Each input item becomes exactly one output item. Return that item from the callback; the output length stays the same.')
+
+export const iterationLessons = [
+  loop('for-of-copy-values', 'Copy values', 'Use for...of to return a new array with the same numbers in the same order.', [2, 4, 6, 8], null,
+    (input) => { const result: number[] = []; for (const value of input) result.push(value); return result },
+    'const result: number[] = []\nfor (const value of input) {\n  result.push(value)\n}\nreturn result'),
+  loop('for-of-double-numbers', 'Double numbers', 'Use for...of to return a new array with every number doubled.', [2, 4, 6], null,
+    (input) => { const result: number[] = []; for (const value of input) result.push(value * 2); return result },
+    'const result: number[] = []\nfor (const value of input) {\n  result.push(value * 2)\n}\nreturn result'),
+  loop('for-of-extract-names', 'Extract user names', 'Use for...of to return the names in their original order.', [{ id: 1, name: 'Ana' }, { id: 2, name: 'Bruno' }], null,
+    (input) => { const result: string[] = []; for (const user of input) result.push(user.name); return result },
+    'const result: string[] = []\nfor (const user of input) {\n  result.push(user.name)\n}\nreturn result'),
+  loop('for-of-count-active-users', 'Count active users', 'Use for...of to return how many users are active.', users, null,
+    (input) => { let count = 0; for (const user of input) { if (user.active) count += 1 } return count },
+    'let count = 0\nfor (const user of input) {\n  if (user.active) count += 1\n}\nreturn count'),
+  loop('for-of-sum-prices', 'Sum prices', 'Use for...of to return the total price.', [{ name: 'Keyboard', price: 100 }, { name: 'Mouse', price: 50 }], null,
+    (input) => { let total = 0; for (const product of input) total += product.price; return total },
+    'let total = 0\nfor (const product of input) {\n  total += product.price\n}\nreturn total'),
+  loop('for-of-maximum', 'Find maximum manually', 'Use for...of to return the largest value in this non-empty array. Do not use Math.max, reduce, or sorting.', [5, 18, 3, 41, 12], null,
+    (input) => { let maximum = input[0]; for (const value of input) { if (value > maximum) maximum = value } return maximum },
+    'let maximum = input[0]\nfor (const value of input) {\n  if (value > maximum) maximum = value\n}\nreturn maximum', { difficulty: 'medium' }),
+
+  map('map-double-numbers', 'Double numbers', 'Use map to double every number. Return one number for each input number.', [1, 2, 3], null,
+    (input) => input.map((value) => value * 2), 'return input.map((value) => value * 2)'),
+  map('map-celsius-fahrenheit', 'Celsius to Fahrenheit', 'Return each temperature in Fahrenheit: multiply Celsius by 9 / 5, then add 32.', [0, 10, 20], null,
+    (input) => input.map((value) => value * 9 / 5 + 32), 'return input.map((value) => value * 9 / 5 + 32)'),
+  map('map-extract-names', 'Extract user names', 'Return one name for every user, in original order.', users, null,
+    (input) => input.map((user) => user.name), 'return input.map((user) => user.name)'),
+  map('map-create-greetings', 'Create greetings', 'Return a greeting for each name, such as "Hello, Ana".', ['Ana', 'Bruno', 'Carla'], null,
+    (input) => input.map((name) => `Hello, ${name}`), 'return input.map((name) => "Hello, " + name)'),
+  map('map-add-tax', 'Add tax to prices', 'Return each price including the tax rate in extra. For a rate of 0.1, multiply by 1.1. Round to two decimal places.', [100, 50, 20], 0.1,
+    (input, extra) => input.map((price) => Math.round(price * (1 + extra) * 100) / 100), 'return input.map((price) => Math.round(price * (1 + extra) * 100) / 100)'),
+  map('map-simplify-products', 'Simplify product objects', 'Return one new object per product containing only id and name.', [{ id: 1, name: 'Keyboard', price: 100, stock: 3, internalCode: 'X' }, { id: 2, name: 'Mouse', price: 50, stock: 0, internalCode: 'Y' }, { id: 3, name: 'Cable', price: 20, stock: 5, internalCode: 'Z' }], null,
+    (input) => input.map((product) => ({ id: product.id, name: product.name })), 'return input.map((product) => ({ id: product.id, name: product.name }))'),
+  map('map-add-available', 'Add an available field', 'Return { name, stock, available } for every product. available is true when stock is greater than zero. Write each property explicitly; do not use spread.', [{ name: 'Keyboard', stock: 3 }, { name: 'Mouse', stock: 0 }, { name: 'Cable', stock: 5 }], null,
+    (input) => input.map((product) => ({ name: product.name, stock: product.stock, available: product.stock > 0 })), 'return input.map((product) => ({\n  name: product.name,\n  stock: product.stock,\n  available: product.stock > 0,\n}))'),
+  map('map-score-labels', 'Convert scores to labels', 'Return "pass" for scores of at least 60 and "fail" otherwise. Keep one label per score.', [80, 45, 72], null,
+    (input) => input.map((score) => score >= 60 ? 'pass' : 'fail'), 'return input.map((score) => score >= 60 ? "pass" : "fail")', { difficulty: 'medium' }),
+  map('map-numbered-names', 'Use the map index', 'Return numbered names starting at 1: "1. Ana", "2. Bruno", and so on.', ['Ana', 'Bruno', 'Carla'], null,
+    (input) => input.map((name, index) => `${index + 1}. ${name}`), 'return input.map((name, index) => (index + 1) + ". " + name)', { difficulty: 'medium' }),
+  map('map-line-totals', 'Build line summaries', 'Return { name, total, label } for every line. total is price times quantity; label is "bulk" for quantity of at least 3, otherwise "single".', [{ name: 'Pen', price: 2, quantity: 3 }, { name: 'Book', price: 10, quantity: 1 }, { name: 'Clip', price: 1, quantity: 5 }], null,
+    (input) => input.map((item) => ({ name: item.name, total: item.price * item.quantity, label: item.quantity >= 3 ? 'bulk' : 'single' })), 'return input.map((item) => ({\n  name: item.name,\n  total: item.price * item.quantity,\n  label: item.quantity >= 3 ? "bulk" : "single",\n}))', { difficulty: 'medium' }),
+]
