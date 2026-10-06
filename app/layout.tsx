@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ['latin'] })
 const _geistMono = Geist_Mono({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'reshape() — practice JS data transformations',
+  title: 'frontend.gym() — practice JS data transformations',
   description:
     'A minimal workspace for practicing real-world JavaScript and TypeScript data transformations with map, filter, reduce and friends.',
   generator: 'v0.app',

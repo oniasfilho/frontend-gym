@@ -41,6 +41,10 @@ export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, descrip
   return { slug, name, description, total, completed: 0, status: total ? 'available' : 'not-started' }
 })
 
+export type Track = { slug: string; name: string; comingSoon?: boolean }
+
+export const tracks: Track[] = [{ slug: 'data-transformation', name: 'Data Transformation' }]
+
 export const curriculumOrder = conceptPaths.map((path) => path.name)
 
 const pathNames = new Map<string, string>(definitions.map(([slug, name]) => [slug, name]))

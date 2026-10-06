@@ -12,9 +12,10 @@ type Progress = {
   drafts: Record<string, string>
   solved: Record<string, string | true>
   view: View
+  lastActiveAt: number | null
 }
 
-const EMPTY: Progress = { pathSlug: 'mixed', index: 0, drafts: {}, solved: {}, view: 'exercise' }
+const EMPTY: Progress = { pathSlug: 'for-of', index: 0, drafts: {}, solved: {}, view: 'exercise', lastActiveAt: null }
 
 function read(): Progress {
   try {
@@ -27,11 +28,12 @@ function read(): Progress {
       else if (typeof value === 'string') solved[id] = value
     }
     return {
-      pathSlug: typeof parsed.pathSlug === 'string' ? parsed.pathSlug : 'mixed',
+      pathSlug: typeof parsed.pathSlug === 'string' ? parsed.pathSlug : EMPTY.pathSlug,
       index: typeof parsed.index === 'number' && Number.isInteger(parsed.index) ? parsed.index : 0,
       drafts: parsed.drafts && typeof parsed.drafts === 'object' ? parsed.drafts : {},
       solved,
       view: parsed.view === 'summary' ? 'summary' : 'exercise',
+      lastActiveAt: typeof parsed.lastActiveAt === 'number' ? parsed.lastActiveAt : null,
     }
   } catch {
     return EMPTY
@@ -56,20 +58,20 @@ export function useProgress(total: number) {
     return () => window.clearTimeout(id)
   }, [progress, hydrated])
 
-  const setIndex = useCallback((index: number) => setProgress((p) => ({ ...p, index, view: 'exercise' })), [])
+  const setIndex = useCallback((index: number) => setProgress((p) => ({ ...p, index, view: 'exercise', lastActiveAt: Date.now() })), [])
 
   const selectPath = useCallback((pathSlug: string, index: number) => {
-    setProgress((p) => ({ ...p, pathSlug, index, view: 'exercise' }))
+    setProgress((p) => ({ ...p, pathSlug, index, view: 'exercise', lastActiveAt: Date.now() }))
   }, [])
 
   const openSummary = useCallback(() => setProgress((p) => ({ ...p, view: 'summary' })), [])
 
   const setDraft = useCallback((id: string, code: string) => {
     setProgress((p) => {
-      if (p.solved[id] !== true) return { ...p, drafts: { ...p.drafts, [id]: code } }
+      if (p.solved[id] !== true) return { ...p, drafts: { ...p.drafts, [id]: code }, lastActiveAt: Date.now() }
       const solved = { ...p.solved }
       delete solved[id]
-      return { ...p, solved, drafts: { ...p.drafts, [id]: code } }
+      return { ...p, solved, drafts: { ...p.drafts, [id]: code }, lastActiveAt: Date.now() }
     })
   }, [])
 
@@ -86,7 +88,7 @@ export function useProgress(total: number) {
   const resetAll = useCallback(() => setProgress(EMPTY), [])
 
   const markSolved = useCallback((id: string, code: string) => {
-    setProgress((p) => (p.solved[id] === code ? p : { ...p, solved: { ...p.solved, [id]: code } }))
+    setProgress((p) => (p.solved[id] === code ? p : { ...p, solved: { ...p.solved, [id]: code }, lastActiveAt: Date.now() }))
   }, [])
 
   const isSolved = useCallback(

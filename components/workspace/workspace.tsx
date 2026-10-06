@@ -21,7 +21,8 @@ import { Kbd } from './kbd'
 import { ResultPanel, type RunState } from './result-panel'
 import { TopBar } from './top-bar'
 import { conceptPaths, exercisesForPath, focusOf, nextPathAfter, supportOf, type ConceptPath } from '@/lib/curriculum'
-import { ConceptOverview, PathCompletion, PathNavigator, type CurriculumView } from './curriculum-views'
+import { ConceptOverview, PathCompletion, type CurriculumView } from './curriculum-views'
+import { Dashboard } from './dashboard'
 import { CommandPalette, LearningConstraints, type CommandAction } from './learning-controls'
 
 const CodeEditor = dynamic(() => import('./code-editor').then((m) => m.CodeEditor), {
@@ -54,7 +55,7 @@ export function Workspace() {
   const [mobilePane, setMobilePane] = useState<MobilePane>('code')
   const [isFormatting, setIsFormatting] = useState(false)
   const [formatError, setFormatError] = useState<string | null>(null)
-  const [curriculumView, setCurriculumView] = useState<CurriculumView | null>(null)
+  const [curriculumView, setCurriculumView] = useState<CurriculumView | null>({ kind: 'dashboard' })
   const [commandOpen, setCommandOpen] = useState(false)
   const runId = useRef(0)
   const liveTimer = useRef<number | undefined>(undefined)
@@ -436,6 +437,7 @@ export function Workspace() {
     </section>
   )
 
+  const openDashboard = () => setCurriculumView({ kind: 'dashboard' })
   const topBar = (
     <TopBar
       exercise={exercise}
@@ -448,7 +450,7 @@ export function Workspace() {
       links={links}
       onSelect={goTo}
       onResetProgress={clearProgress}
-      onOpenPaths={() => setCurriculumView({ kind: 'navigator' })}
+      onOpenDashboard={openDashboard}
       onOpenConcept={() => setCurriculumView({ kind: 'concept', path: activePath })}
       onOpenCommands={() => setCommandOpen(true)}
     />
@@ -464,8 +466,16 @@ export function Workspace() {
     selectPath(path.slug, exerciseIndex)
     setCurriculumView(null)
   }
+  const openPath = (path: ConceptPath) => {
+    const firstUnsolved = exercisesForPath(path.slug).findIndex((item) => !isSolved(item.id, drafts[item.id] ?? item.starter))
+    startConceptExercise(path, Math.max(firstUnsolved, 0))
+  }
+  const resumeWorkspace = () => {
+    if (view === 'summary') closeSummary()
+    setCurriculumView(null)
+  }
   const commandActions: CommandAction[] = [
-    { label: 'Go to path navigator', group: 'Navigation', action: () => setCurriculumView({ kind: 'navigator' }) },
+    { label: 'Go to dashboard', group: 'Navigation', action: openDashboard },
     { label: `Open ${activePath.name} concept`, group: 'Navigation', action: openActiveOverview },
     { label: 'Run solution', group: 'Exercise', shortcut: <Kbd mod>Enter</Kbd>, action: () => void execute() },
     { label: 'Next exercise', group: 'Exercise', action: goNext },
@@ -474,22 +484,30 @@ export function Workspace() {
     { label: 'Reset solution', group: 'Workspace', action: () => resetDraft(exercise.id) },
   ]
 
-  if (curriculumView?.kind === 'navigator') {
-    return <PathNavigator paths={paths} onBack={() => setCurriculumView(null)} onOpen={(path) => setCurriculumView({ kind: 'concept', path })} />
+  if (curriculumView?.kind === 'dashboard') {
+    return (
+      <Dashboard
+        paths={paths}
+        resume={{ path: activePath, index, exercise, solved: links.map((item) => item.solved), lastActiveAt: progress.lastActiveAt }}
+        hydrated={hydrated}
+        onResume={resumeWorkspace}
+        onOpenPath={openPath}
+      />
+    )
   }
   if (curriculumView?.kind === 'concept') {
     const path = paths.find((item) => item.slug === curriculumView.path.slug)!
     return <ConceptOverview path={path} isSolved={(id) => {
       const item = allExercises.find((exercise) => exercise.id === id)!
       return isSolved(id, drafts[id] ?? item.starter)
-    }} onBack={() => setCurriculumView({ kind: 'navigator' })} onStart={(index) => startConceptExercise(path, index)} />
+    }} onBack={openDashboard} onStart={(index) => startConceptExercise(path, index)} />
   }
   if (curriculumView?.kind === 'completion') {
     const completedPath = curriculumView.path
     const upcoming = nextPathAfter(completedPath.slug)
     const nextPath = upcoming ? paths.find((path) => path.slug === upcoming.slug) ?? upcoming : undefined
     const practiced = [...new Set(exercisesForPath(completedPath.slug).map((lesson) => lesson.stage ?? lesson.title))]
-    return <PathCompletion path={completedPath} practiced={practiced} nextPath={nextPath} onNavigator={() => setCurriculumView({ kind: 'navigator' })} onRepeat={() => setCurriculumView({ kind: 'concept', path: completedPath })} onNext={() => nextPath && setCurriculumView({ kind: 'concept', path: nextPath })} />
+    return <PathCompletion path={completedPath} practiced={practiced} nextPath={nextPath} onDashboard={openDashboard} onRepeat={() => setCurriculumView({ kind: 'concept', path: completedPath })} onNext={() => nextPath && setCurriculumView({ kind: 'concept', path: nextPath })} />
   }
 
   if (view === 'summary') {

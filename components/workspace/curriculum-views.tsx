@@ -1,59 +1,13 @@
 'use client'
 
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, LockKeyhole } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { exercisesForPath, supportOf, type ConceptPath } from '@/lib/curriculum'
 import { cn } from '@/lib/utils'
+import { Wordmark } from './wordmark'
 
-export type CurriculumView = { kind: 'navigator' } | { kind: 'concept'; path: ConceptPath } | { kind: 'completion'; path: ConceptPath }
-
-const STATUS_LABEL = {
-  completed: 'Completed',
-  'in-progress': 'In progress',
-  available: 'Available',
-  'not-started': 'Not started',
-}
-
-export function PathNavigator({ paths, onOpen, onBack }: { paths: ConceptPath[]; onOpen: (path: ConceptPath) => void; onBack: () => void }) {
-  return (
-    <div className="flex h-dvh flex-col bg-background">
-      <CurriculumHeader onBack={onBack} title="Data Transformation" eyebrow="JavaScript / TypeScript" />
-      <main className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-auto px-4 py-6 md:px-8">
-        <div className="mb-5 flex items-end justify-between gap-6">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold tracking-tight text-balance">Concept paths</h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">Browse exercises by their primary concept. Supporting techniques are listed in each exercise; Mixed Practice includes the full collection.</p>
-          </div>
-          <span className="hidden font-mono text-xs text-muted-foreground md:block">{paths.filter((path) => path.total > 0).length} / {paths.length} paths available</span>
-        </div>
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <div className="hidden grid-cols-[3rem_1.1fr_1.4fr_8rem_8rem_1.5rem] gap-3 border-b bg-muted/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wide text-muted-foreground md:grid">
-            <span>No.</span><span>Concept</span><span>Purpose</span><span>Progress</span><span>Status</span><span />
-          </div>
-          <ol>
-            {paths.map((path, index) => (
-              <li key={path.slug} className="border-b last:border-b-0">
-                <button type="button" onClick={() => onOpen(path)} className="group grid w-full grid-cols-[2.5rem_1fr_auto] items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 md:grid-cols-[3rem_1.1fr_1.4fr_8rem_8rem_1.5rem]">
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="font-mono text-sm font-medium">{path.name}</span>
-                  <span className="hidden text-sm text-muted-foreground md:block">{path.description}</span>
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground">{path.completed} / {path.total}</span>
-                  <span className="hidden items-center gap-2 text-xs md:flex">
-                    {path.status === 'completed' ? <Check className="text-success" aria-hidden="true" /> : path.status === 'not-started' ? <LockKeyhole className="text-muted-foreground" aria-hidden="true" /> : <Circle className={path.status === 'in-progress' ? 'text-warning' : 'text-muted-foreground'} aria-hidden="true" />}
-                    {path.total === 0 ? 'Coming soon' : STATUS_LABEL[path.status]}
-                  </span>
-                  <ArrowRight className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ol>
-        </div>
-        <p className="mt-3 font-mono text-xs text-muted-foreground">Suggested learning order: for...of → map → filter → find → … → Mixed Practice</p>
-      </main>
-    </div>
-  )
-}
+export type CurriculumView = { kind: 'dashboard' } | { kind: 'concept'; path: ConceptPath } | { kind: 'completion'; path: ConceptPath }
 
 export function ConceptOverview({ path, isSolved, onBack, onStart }: { path: ConceptPath; isSolved: (id: string) => boolean; onBack: () => void; onStart: (index: number) => void }) {
   const lessons = exercisesForPath(path.slug)
@@ -95,11 +49,11 @@ function KnowledgeList({ title, items, muted }: { title: string; items: string[]
   return <section className="rounded-lg border bg-card p-3"><h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">{title}</h2><ul className={cn('flex flex-col gap-1.5 text-sm', muted && 'text-muted-foreground')}>{items.length ? items.map((item) => <li key={item} className="flex items-center gap-2"><span className="text-muted-foreground">—</span><code className="font-mono text-xs">{item}</code></li>) : <li className="text-muted-foreground">None listed.</li>}</ul></section>
 }
 
-export function PathCompletion({ path, practiced, nextPath, onNavigator, onNext, onRepeat }: { path: ConceptPath; practiced: string[]; nextPath?: ConceptPath; onNavigator: () => void; onNext: () => void; onRepeat: () => void }) {
+export function PathCompletion({ path, practiced, nextPath, onDashboard, onNext, onRepeat }: { path: ConceptPath; practiced: string[]; nextPath?: ConceptPath; onDashboard: () => void; onNext: () => void; onRepeat: () => void }) {
   const focused = path.slug !== 'mixed'
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <CurriculumHeader title={`${path.name} completed`} eyebrow="Data Transformation" onBack={onNavigator} />
+      <CurriculumHeader title={`${path.name} completed`} eyebrow="Data Transformation" onBack={onDashboard} />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 p-6">
         <div className="border-b pb-5">
           <span className="font-mono text-xs text-success">PATH COMPLETE · {path.total} / {path.total}</span>
@@ -111,7 +65,7 @@ export function PathCompletion({ path, practiced, nextPath, onNavigator, onNext,
         <div className="flex flex-wrap gap-2">
           {nextPath && <Button onClick={onNext}>Continue to {nextPath.name}<ArrowRight data-icon="inline-end" /></Button>}
           <Button variant={nextPath ? 'outline' : 'default'} onClick={onRepeat}>Repeat {path.name}</Button>
-          <Button variant="ghost" onClick={onNavigator}>Open path navigator</Button>
+          <Button variant="ghost" onClick={onDashboard}>Open dashboard</Button>
         </div>
       </main>
     </div>
@@ -119,5 +73,5 @@ export function PathCompletion({ path, practiced, nextPath, onNavigator, onNext,
 }
 
 function CurriculumHeader({ title, eyebrow, onBack }: { title: string; eyebrow: string; onBack: () => void }) {
-  return <header className="flex min-h-12 shrink-0 items-center gap-3 border-b px-3"><button type="button" className="font-mono text-sm font-semibold tracking-tight" onClick={onBack}>reshape<span className="text-muted-foreground">()</span></button><span className="h-4 w-px bg-border" /><Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft data-icon="inline-start" />Workspace</Button><div className="ml-auto flex items-center gap-2 text-xs"><span className="hidden text-muted-foreground sm:inline">{eyebrow}</span><ChevronDown className="text-muted-foreground" /><span className="font-mono">{title}</span></div></header>
+  return <header className="flex min-h-12 shrink-0 items-center gap-3 border-b px-3"><button type="button" className="font-mono text-sm font-semibold tracking-tight" onClick={onBack}><Wordmark /></button><span className="h-4 w-px bg-border" /><Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft data-icon="inline-start" />Dashboard</Button><div className="ml-auto flex items-center gap-2 text-xs"><span className="hidden text-muted-foreground sm:inline">{eyebrow}</span><ChevronDown className="text-muted-foreground" /><span className="font-mono">{title}</span></div></header>
 }
