@@ -7,9 +7,10 @@ import { syntaxLessons } from '@/lib/lessons/syntax'
 import { collectionLessons } from '@/lib/lessons/collections'
 import { entryLessons } from '@/lib/lessons/entries'
 import { nullableLessons } from '@/lib/lessons/nullable'
+import { mixedPracticeLessons } from '@/lib/lessons/mixed'
 export type { Exercise, Difficulty, PathSlug } from '@/lib/exercise-model'
 
-export const mixedExercises: Exercise[] = [
+const baseMixedExercises: Exercise[] = [
   define({
     id: 'active-emails',
     title: 'Emails of active staff',
@@ -253,6 +254,13 @@ return Object.entries(buckets)
     reference: (txs, { includeStatuses }) => Object.entries(txs.filter((t) => includeStatuses.includes(t.status)).reduce<Record<string, { total: number; count: number }>>((acc, { date, amount }) => { const month = date.slice(0, 7); const bucket = acc[month] ?? { total: 0, count: 0 }; acc[month] = { total: bucket.total + amount, count: bucket.count + 1 }; return acc }, {})).sort(([a], [b]) => a.localeCompare(b)).map(([month, { total, count }]) => ({ month, total, count })),
   }),
 ]
+
+const DIFFICULTY_RANK = { easy: 0, medium: 1, hard: 2 }
+
+// Ordered easy → hard so Mixed Practice ramps up; the sort is stable within each difficulty.
+export const mixedExercises: Exercise[] = [...baseMixedExercises, ...mixedPracticeLessons].sort(
+  (a, b) => DIFFICULTY_RANK[a.difficulty] - DIFFICULTY_RANK[b.difficulty],
+)
 
 export const dedicatedExercises: Exercise[] = [
   ...iterationLessons,
