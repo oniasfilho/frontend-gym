@@ -2,7 +2,7 @@ export const THEME_NAMES = ['Nocturne', 'Ember', 'Tide', 'Graphite', 'Mono'] as 
 
 export type ThemeName = (typeof THEME_NAMES)[number]
 
-export const DEFAULT_THEME: ThemeName = 'Nocturne'
+export const DEFAULT_THEME: ThemeName = 'Mono'
 
 /** Ground and accent of each theme, for swatches. The full palettes live in app/globals.css. */
 export const THEME_SWATCHES: Record<ThemeName, { bg: string; accent: string }> = {

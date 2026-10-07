@@ -2,12 +2,13 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
+import { DEFAULT_THEME } from '@/lib/themes'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains-mono' })
 
-// Applies the saved theme before first paint. Reads the same key as hooks/use-progress.ts.
+// Swaps in the saved theme, if any, before first paint. Reads the same key as hooks/use-progress.ts.
 const THEME_SCRIPT = `try{var t=JSON.parse(localStorage.getItem('reshape:progress:v1')||'{}').theme;if(typeof t==='string')document.documentElement.dataset.theme=t}catch(e){}`
 
 export const metadata: Metadata = {
@@ -36,7 +37,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#161826',
+  // The Mono ground, oklch(0.155 0 0).
+  themeColor: '#0c0c0c',
 }
 
 export default function RootLayout({
@@ -45,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme={DEFAULT_THEME} className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Script id="theme" strategy="beforeInteractive">
           {THEME_SCRIPT}
