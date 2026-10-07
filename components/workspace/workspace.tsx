@@ -2,47 +2,59 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { ArrowRight, BroomSparkles, ChevronLeft, Circle, CircleCheck, LoaderCircle, Play, RotateCcw, SkipForward } from 'lucide-react'
+import type { EditorView } from '@codemirror/view'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { exercises as allExercises } from '@/lib/exercises'
 import { formatCode } from '@/lib/format-code'
 import { withDeclarations, withoutDeclarations } from '@/lib/shape'
 import { structuralDiff } from '@/lib/diff'
 import { sameJson } from '@/lib/json'
-import { canCompile, runSolution } from '@/lib/runner'
-import { Group, Panel } from 'react-resizable-panels'
+import { breakableLines } from '@/lib/breakpoints'
+import { groupPeeks, inlineText } from '@/lib/peeks'
+import { canCompile, runSolution, type Peek } from '@/lib/runner'
+import { applyTheme, DEFAULT_THEME, THEME_NAMES } from '@/lib/themes'
 import { useProgress } from '@/hooks/use-progress'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { celebrate, useEnterAnimation } from '@/hooks/use-enter-animation'
 import { cn } from '@/lib/utils'
-import { DataPanel } from './data-panel'
-import { ExerciseMenu, requestProgressReset, type ExerciseLink } from './exercise-menu'
-import { Gutter } from './gutter'
-import { Kbd } from './kbd'
-import { ResultPanel, type RunState } from './result-panel'
-import { TopBar } from './top-bar'
 import { conceptPaths, exercisesForPath, focusOf, nextPathAfter, supportOf, type ConceptPath } from '@/lib/curriculum'
-import { ConceptOverview, PathCompletion, type CurriculumView } from './curriculum-views'
-import { Dashboard } from './dashboard'
-import { CommandPalette, LearningConstraints, type CommandAction } from './learning-controls'
+import type { Ghost } from './code-editor'
+import { PathComplete } from './curriculum-views'
+import { ValueBlock } from './data-panel'
+import { Home } from './home'
+import { JumpPalette, type JumpItem } from './jump-palette'
+import { Shortcut, useIsMac, useKeys } from './kbd'
+import { OutputPanel, type OutputTab, type RunState } from './result-panel'
+import { TopBar, type ExerciseLink } from './top-bar'
 
 const CodeEditor = dynamic(() => import('./code-editor').then((m) => m.CodeEditor), {
   ssr: false,
-  loading: () => <div className="h-full animate-pulse bg-muted/40" />,
+  loading: () => <div className="h-full" />,
 })
 
-type MobilePane = 'inputs' | 'code' | 'output'
+type View = 'home' | 'practice' | 'done'
 type InputSide = 'A' | 'B'
 type Overrides = Record<string, { A?: unknown; B?: unknown }>
+/** What Peek and the inline values show: the latest run that compiled. */
+type PeekState = { peeks: Peek[]; code: string; dimmed: boolean; ran: boolean }
 
 const NO_BREAKPOINTS: number[] = []
+const NO_PEEKS: PeekState = { peeks: [], code: '', dimmed: false, ran: false }
+
+function requestProgressReset(action: () => void) {
+  if (window.confirm('Clear every draft and solved exercise saved in this browser?')) action()
+}
 
 export function Workspace() {
   const progress = useProgress(allExercises.length)
-  const { drafts, view, hydrated, setIndex, selectPath, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved } = progress
+  const { drafts, hydrated, setIndex, selectPath, setDraft, resetDraft, resetAll, markSolved, isSolved } = progress
+  const keys = useKeys()
+  const isMac = useIsMac()
+  const theme = progress.theme ?? DEFAULT_THEME
+  const solvedFlags = (slug: string) => exercisesForPath(slug).map((item) => isSolved(item.id, drafts[item.id] ?? item.starter))
   const paths: ConceptPath[] = conceptPaths.map((path) => {
-    const lessons = exercisesForPath(path.slug)
-    const completed = lessons.filter((item) => isSolved(item.id, drafts[item.id] ?? item.starter)).length
-    return { ...path, completed, status: completed > 0 && completed === lessons.length ? 'completed' : completed > 0 ? 'in-progress' : lessons.length ? 'available' : 'not-started' }
+    const completed = solvedFlags(path.slug).filter(Boolean).length
+    return { ...path, completed, status: completed > 0 && completed === path.total ? 'completed' : completed > 0 ? 'in-progress' : path.total ? 'available' : 'not-started' }
   })
   const activePath = paths.find((path) => path.slug === progress.pathSlug && path.total > 0) ?? paths[paths.length - 1]
   const exercises = exercisesForPath(activePath.slug)
@@ -51,14 +63,15 @@ export function Workspace() {
   const code = drafts[exercise.id] ?? exercise.starter
   const solvedNow = isSolved(exercise.id, code)
 
+  const [view, setView] = useState<View>('home')
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [run, setRun] = useState<RunState>({ status: 'idle' })
+  const [peekState, setPeekState] = useState<PeekState>(NO_PEEKS)
+  const [tab, setTab] = useState<OutputTab>('result')
   const [overrides, setOverrides] = useState<Overrides>({})
   const [showExpected, setShowExpected] = useState(true)
-  const [mobilePane, setMobilePane] = useState<MobilePane>('code')
   const [isFormatting, setIsFormatting] = useState(false)
   const [formatError, setFormatError] = useState<string | null>(null)
-  const [curriculumView, setCurriculumView] = useState<CurriculumView | null>({ kind: 'dashboard' })
-  const [commandOpen, setCommandOpen] = useState(false)
   // Breakpoints belong to the open exercise only; switching exercises clears them.
   const [breakpointState, setBreakpointState] = useState({ id: exercise.id, lines: NO_BREAKPOINTS })
   if (breakpointState.id !== exercise.id) setBreakpointState({ id: exercise.id, lines: NO_BREAKPOINTS })
@@ -72,6 +85,19 @@ export function Workspace() {
   const exerciseIdRef = useRef(exercise.id)
   codeRef.current = code
   exerciseIdRef.current = exercise.id
+  const editorView = useRef<EditorView | null>(null)
+  const outputRef = useRef<HTMLDivElement>(null)
+  const primaryRef = useRef<HTMLButtonElement>(null)
+  const stageRef = useRef<HTMLElement>(null)
+  // The last passing code that was celebrated, and the peek count of the last compiled run.
+  const celebrated = useRef<string | null>(null)
+  const lastPeekCount = useRef(0)
+
+  useEnterAnimation(stageRef, `${view}:${activePath.slug}:${index}`)
+
+  useEffect(() => {
+    if (hydrated) applyTheme(theme)
+  }, [hydrated, theme])
 
   const override = overrides[exercise.id]
   const valueA = override && 'A' in override ? override.A : exercise.A
@@ -89,10 +115,8 @@ export function Workspace() {
   const links: ExerciseLink[] = exercises.map((item) => ({
     id: item.id,
     title: item.title,
-    difficulty: item.difficulty,
     solved: isSolved(item.id, drafts[item.id] ?? item.starter),
   }))
-  const solvedCount = links.filter((item) => item.solved).length
 
   const runSource = useCallback(
     async (source: string, { live }: { live: boolean }) => {
@@ -101,6 +125,9 @@ export function Workspace() {
       if (!live) setRun({ status: 'running' })
       const outcome = await runSolution(source, valueA, valueB, breakpointsRef.current)
       if (id !== runId.current) return
+      const compiled = outcome.ok || outcome.phase !== 'compile'
+      // A run that doesn't compile keeps the last good values on screen, dimmed.
+      setPeekState((prev) => (compiled ? { peeks: outcome.peeks, code: source, dimmed: false, ran: true } : { ...prev, dimmed: prev.peeks.length > 0, ran: true }))
       if (expectedResult.error) {
         setRun({
           status: 'done',
@@ -113,14 +140,25 @@ export function Workspace() {
       }
       const diffs = outcome.ok ? structuralDiff(expectedResult.value, outcome.value) : []
       const focusViolation = exercise.path === 'filter' && /\.reduce\s*\(/.test(source)
-      if (outcome.ok && diffs.length === 0 && !hasOverride && !focusViolation) markSolved(exercise.id, source)
+      const passed = outcome.ok && diffs.length === 0 && !focusViolation
+      if (passed && !hasOverride) markSolved(exercise.id, source)
       setRun({ status: 'done', outcome, diffs, code: source })
+
+      const key = `${exercise.id}\n${source}`
+      if (passed && celebrated.current !== key) {
+        celebrated.current = key
+        setTab('result')
+        celebrate(outputRef.current, primaryRef.current)
+      } else if (!passed && compiled && lastPeekCount.current === 0 && outcome.peeks.length > 0) {
+        setTab('peek')
+      }
+      if (compiled) lastPeekCount.current = outcome.peeks.length
     },
-    [exercise.id, expectedResult, hasOverride, markSolved, valueA, valueB],
+    [exercise.id, exercise.path, expectedResult, hasOverride, markSolved, valueA, valueB],
   )
 
   const execute = useCallback(() => {
-    setMobilePane('output')
+    outputRef.current?.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 220 })
     return runSource(code, { live: false })
   }, [code, runSource])
 
@@ -135,7 +173,7 @@ export function Workspace() {
         void runSource(value, { live: true })
       }, 350)
     },
-    [exercise.id, runSource, setDraft],
+    [code, exercise.id, runSource, setDraft],
   )
 
   const changeBreakpoints = useCallback(
@@ -144,10 +182,11 @@ export function Workspace() {
       if (lines.length === current.length && lines.every((line, i) => line === current[i])) return
       breakpointsRef.current = lines
       setBreakpointState({ id: exerciseIdRef.current, lines })
-      // Edits can move breakpoints before the new code reaches codeRef, so read it once that has settled.
+      if (lines.length > current.length) setTab('peek')
+      // Edits can move breakpoints before the new code reaches codeRef, so read the editor's own copy.
       window.clearTimeout(liveTimer.current)
       liveTimer.current = window.setTimeout(() => {
-        const source = codeRef.current
+        const source = editorView.current?.state.doc.toString() ?? codeRef.current
         if (canCompile(source)) void runSource(source, { live: true })
       })
     },
@@ -214,38 +253,51 @@ export function Workspace() {
   const stopRun = useCallback(() => {
     window.clearTimeout(liveTimer.current)
     runId.current += 1
+    lastPeekCount.current = 0
     setRun({ status: 'idle' })
+    setPeekState(NO_PEEKS)
   }, [])
 
   const goTo = useCallback(
     (nextIndex: number) => {
       stopRun()
       setFormatError(null)
-      setMobilePane('code')
       setIndex(nextIndex)
     },
     [setIndex, stopRun],
   )
 
-  const finishSet = useCallback(() => {
-    stopRun()
-    openSummary()
-  }, [openSummary, stopRun])
+  const openExercise = useCallback(
+    (slug: string, exerciseIndex: number) => {
+      if (!exercisesForPath(slug)[exerciseIndex]) return
+      // Coming back to the open exercise keeps its last result.
+      if (slug !== activePath.slug || exerciseIndex !== index) {
+        stopRun()
+        setFormatError(null)
+      }
+      selectPath(slug, exerciseIndex)
+      setView('practice')
+    },
+    [activePath.slug, index, selectPath, stopRun],
+  )
+
+  const firstUnsolved = (path: ConceptPath) => Math.max(solvedFlags(path.slug).indexOf(false), 0)
+  const openPath = (path: ConceptPath) => openExercise(path.slug, firstUnsolved(path))
+
+  const goHome = useCallback(() => setView('home'), [])
 
   const goNext = useCallback(() => {
-    if (index >= exercises.length - 1) finishSet()
-    else goTo(index + 1)
-  }, [exercises.length, finishSet, goTo, index])
+    if (index < exercises.length - 1) {
+      goTo(index + 1)
+      return
+    }
+    stopRun()
+    setView('done')
+  }, [exercises.length, goTo, index, stopRun])
 
   const goPrev = useCallback(() => {
     if (index > 0) goTo(index - 1)
   }, [goTo, index])
-
-  const closeSummary = useCallback(() => {
-    stopRun()
-    setMobilePane('code')
-    setIndex(index)
-  }, [index, setIndex, stopRun])
 
   const focusViolation = exercise.path === 'filter' && /\.reduce\s*\(/.test(code) ? 'reduce' : null
   const runMatches = run.status === 'done' && run.outcome.ok && !run.note && run.diffs.length === 0 && run.code === code && !focusViolation
@@ -256,27 +308,55 @@ export function Workspace() {
     if (canAdvance) goNext()
   }, [canAdvance, goNext])
 
+  // ⌘↵ runs the code, or moves on once the answer is correct.
+  const primary = useCallback(() => {
+    if (canAdvance) goNext()
+    else if (run.status !== 'running') void execute()
+  }, [canAdvance, execute, goNext, run.status])
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (view === 'summary' || curriculumView || commandOpen || event.defaultPrevented || event.isComposing || event.keyCode === 229) return
+      if (event.isComposing || event.keyCode === 229) return
+      const mod = event.metaKey || event.ctrlKey
+      if (mod && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+        return
+      }
+      if (paletteOpen || view !== 'practice' || event.defaultPrevented) return
+      if (mod && event.key === 'Enter') {
+        event.preventDefault()
+        if (event.shiftKey) next()
+        else primary()
+        return
+      }
+      // Plain text fields keep their own arrow and Escape behavior.
+      if (event.target instanceof Element && event.target.closest('input, textarea, select')) return
       if (event.altKey && event.key === 'ArrowRight') {
         event.preventDefault()
         goNext()
-        return
-      }
-      if (event.altKey && event.key === 'ArrowLeft') {
+      } else if (event.altKey && event.key === 'ArrowLeft') {
         event.preventDefault()
         goPrev()
-        return
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        goHome()
       }
-      if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return
-      event.preventDefault()
-      if (event.shiftKey) next()
-      else void execute()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [commandOpen, curriculumView, execute, goNext, goPrev, next, view])
+  }, [goHome, goNext, goPrev, next, paletteOpen, primary, view])
+
+  // Closing Jump returns the caret to the editor.
+  const paletteWasOpen = useRef(false)
+  useEffect(() => {
+    if (paletteWasOpen.current && !paletteOpen && view === 'practice') editorView.current?.focus()
+    paletteWasOpen.current = paletteOpen
+  }, [paletteOpen, view])
+
+  const onEditorReady = useCallback((instance: EditorView | null) => {
+    editorView.current = instance
+  }, [])
 
   const updateInput = useCallback(
     (side: InputSide, value: unknown) => {
@@ -316,404 +396,301 @@ export function Workspace() {
     resetAll()
     setOverrides({})
     setShowExpected(true)
-    setMobilePane('code')
     stopRun()
   }, [resetAll, stopRun])
 
-  const isStale = run.status === 'done' && run.code !== code
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
-  const peekSample = `peek(${exercise.labels.A})  ·  peek(${exercise.labels.A}, "after map")`
-
-  const goal = (
-    <p className="shrink-0 text-sm leading-relaxed text-pretty text-muted-foreground">
-      <span className="font-medium text-foreground">Goal: </span>
-      {exercise.prompt}
-    </p>
-  )
-  const panelA = (
-    <DataPanel
-      key={`${exercise.id}-A`}
-      letter="A"
-      label={exercise.labels.A}
-      value={valueA}
-      className="min-h-0 flex-1"
-      editable
-      dirty={Boolean(override && 'A' in override)}
-      onValueChange={(value) => updateInput('A', value)}
-      onRestore={() => clearInput('A')}
-    />
-  )
-  const panelB = (
-    <DataPanel
-      key={`${exercise.id}-B`}
-      letter="B"
-      label={exercise.labels.B}
-      value={valueB}
-      className="min-h-0 flex-1"
-      editable
-      dirty={Boolean(override && 'B' in override)}
-      onValueChange={(value) => updateInput('B', value)}
-      onRestore={() => clearInput('B')}
-    />
-  )
-  const panelC = (
-    <DataPanel
-      key={`${exercise.id}-C`}
-      letter="C"
-      label="expected"
-      value={expectedResult.value}
-      emphasis
-      className="min-h-0 flex-1"
-      notice={expectedResult.error}
-      onHide={() => setShowExpected(false)}
-    />
-  )
-  const editor = (
-    <section aria-label="Solution" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-      <header className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
-        <span className="font-mono text-xs text-foreground">solution.ts</span>
-        <span className="truncate font-mono text-xs text-muted-foreground">
-          {`solve(${exercise.labels.A}, ${exercise.labels.B})`}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {formatError && (
-            <span className="hidden text-xs text-destructive sm:inline" role="alert" title={formatError}>
-              Couldn&apos;t format
-            </span>
-          )}
-          {exercise.declarations && (
-            <Button
-              variant={code.startsWith(`${exercise.declarations}\n\n`) ? 'secondary' : 'ghost'}
-              size="xs"
-              className={code.startsWith(`${exercise.declarations}\n\n`) ? undefined : 'text-muted-foreground'}
-              aria-pressed={code.startsWith(`${exercise.declarations}\n\n`)}
-              onClick={() => {
-                const visible = code.startsWith(`${exercise.declarations}\n\n`)
-                const next = visible ? withoutDeclarations(code, exercise.declarations) : withDeclarations(code, exercise.declarations)
-                setFormatError(null)
-                if (isSolved(exercise.id, code)) markSolved(exercise.id, next)
-                setDraft(exercise.id, next)
-              }}
-            >
-              Types
-            </Button>
-          )}
-          <LearningConstraints focus={focusOf(exercise)} support={supportOf(exercise)} />
-          <Button
-            variant="ghost"
-            size="xs"
-            className="text-muted-foreground"
-            onClick={() => void beautify()}
-            disabled={isFormatting}
-            title={formatError ?? 'Beautify code (Shift+Alt+F)'}
-          >
-            {isFormatting ? (
-              <LoaderCircle className="animate-spin" data-icon="inline-start" />
-            ) : (
-              <BroomSparkles data-icon="inline-start" />
-            )}
-            Beautify
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            className="text-muted-foreground"
-            onClick={() => {
-              setFormatError(null)
-              resetDraft(exercise.id)
-            }}
-            disabled={code === exercise.starter}
-          >
-            <RotateCcw data-icon="inline-start" />
-            Reset
-          </Button>
-        </div>
-      </header>
-      <div className="min-h-0 flex-1">
-        {hydrated && (
-          <CodeEditor
-            key={exercise.id}
-            value={code}
-            params={exercise.params}
-            onChange={handleChange}
-            onRun={() => void execute()}
-            onNext={next}
-            onBeautify={() => void beautify()}
-            breakpoints={breakpoints}
-            onBreakpointsChange={changeBreakpoints}
-          />
-        )}
-      </div>
-    </section>
-  )
-  const result = (
-    <section aria-label="Result" className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card">
-      <ResultPanel
-        state={run}
-        expected={expectedResult.value}
-        focus={focusOf(exercise)}
-        focusViolation={focusViolation}
-        isStale={isStale}
-        approach={exercise.approach}
-        solution={exercise.solution}
-        peekSample={peekSample}
-        successTitle={hasOverride ? 'Matches these inputs' : 'Correct'}
-        successHint={hasOverride && !solvedNow ? 'Restore the sample to record this exercise.' : undefined}
-      />
-    </section>
-  )
-
-  const openDashboard = () => setCurriculumView({ kind: 'dashboard' })
-  const topBar = (
-    <TopBar
-      exercise={exercise}
-      pathName={activePath.name}
-      position={index}
-      total={exercises.length}
-      solved={solvedNow}
-      solvedCount={solvedCount}
-      view={view}
-      links={links}
-      onSelect={goTo}
-      onResetProgress={clearProgress}
-      onOpenDashboard={openDashboard}
-      onOpenConcept={() => setCurriculumView({ kind: 'concept', path: activePath })}
-      onOpenCommands={() => setCommandOpen(true)}
-    />
-  )
-
-  const openActiveOverview = () => setCurriculumView({ kind: 'concept', path: activePath })
-  const startConceptExercise = (path: ConceptPath, exerciseIndex: number) => {
-    const lessons = exercisesForPath(path.slug)
-    if (!lessons[exerciseIndex]) return
-    stopRun()
+  const resetSolution = () => {
     setFormatError(null)
-    setMobilePane('code')
-    selectPath(path.slug, exerciseIndex)
-    setCurriculumView(null)
-  }
-  const openPath = (path: ConceptPath) => {
-    const firstUnsolved = exercisesForPath(path.slug).findIndex((item) => !isSolved(item.id, drafts[item.id] ?? item.starter))
-    startConceptExercise(path, Math.max(firstUnsolved, 0))
-  }
-  const resumeWorkspace = () => {
-    if (view === 'summary') closeSummary()
-    setCurriculumView(null)
-  }
-  const commandActions: CommandAction[] = [
-    { label: 'Go to dashboard', group: 'Navigation', action: openDashboard },
-    { label: `Open ${activePath.name} concept`, group: 'Navigation', action: openActiveOverview },
-    { label: 'Run solution', group: 'Exercise', shortcut: <Kbd mod>Enter</Kbd>, action: () => void execute() },
-    { label: 'Next exercise', group: 'Exercise', action: goNext },
-    { label: 'Previous exercise', group: 'Exercise', action: goPrev },
-    { label: 'Toggle expected output', group: 'Workspace', action: () => setShowExpected((value) => !value) },
-    { label: 'Reset solution', group: 'Workspace', action: () => resetDraft(exercise.id) },
-  ]
-
-  if (curriculumView?.kind === 'dashboard') {
-    return (
-      <Dashboard
-        paths={paths}
-        resume={{ path: activePath, index, exercise, solved: links.map((item) => item.solved), lastActiveAt: progress.lastActiveAt }}
-        hydrated={hydrated}
-        onResume={resumeWorkspace}
-        onOpenPath={openPath}
-      />
-    )
-  }
-  if (curriculumView?.kind === 'concept') {
-    const path = paths.find((item) => item.slug === curriculumView.path.slug)!
-    return <ConceptOverview path={path} isSolved={(id) => {
-      const item = allExercises.find((exercise) => exercise.id === id)!
-      return isSolved(id, drafts[id] ?? item.starter)
-    }} onBack={openDashboard} onStart={(index) => startConceptExercise(path, index)} />
-  }
-  if (curriculumView?.kind === 'completion') {
-    const completedPath = curriculumView.path
-    const upcoming = nextPathAfter(completedPath.slug)
-    const nextPath = upcoming ? paths.find((path) => path.slug === upcoming.slug) ?? upcoming : undefined
-    const practiced = [...new Set(exercisesForPath(completedPath.slug).map((lesson) => lesson.stage ?? lesson.title))]
-    return <PathCompletion path={completedPath} practiced={practiced} nextPath={nextPath} onDashboard={openDashboard} onRepeat={() => setCurriculumView({ kind: 'concept', path: completedPath })} onNext={() => nextPath && setCurriculumView({ kind: 'concept', path: nextPath })} />
+    stopRun()
+    resetDraft(exercise.id)
   }
 
-  if (view === 'summary') {
+  const typesVisible = Boolean(exercise.declarations) && code.startsWith(`${exercise.declarations}\n\n`)
+  const toggleTypes = () => {
+    const nextCode = typesVisible ? withoutDeclarations(code, exercise.declarations) : withDeclarations(code, exercise.declarations)
+    setFormatError(null)
+    if (isSolved(exercise.id, code)) markSolved(exercise.id, nextCode)
+    setDraft(exercise.id, nextCode)
+  }
+
+  const isStale = run.status === 'done' && run.code !== code
+  const groups = useMemo(() => groupPeeks(peekState.peeks), [peekState.peeks])
+  const peekCount = peekState.peeks.length
+  const watchableAtRun = useMemo(() => breakableLines(peekState.code), [peekState.code])
+  const ghosts = useMemo<Ghost[]>(() => {
+    const byLine = new Map<number, string[]>()
+    for (const group of groups) {
+      if (group.line !== undefined) byLine.set(group.line, [...(byLine.get(group.line) ?? []), inlineText(group)])
+    }
+    const list: Ghost[] = [...byLine].map(([line, texts]) => ({ line, text: texts.join('   '), tone: peekState.dimmed ? 'dim' : 'value' }))
+    if (peekState.ran) {
+      for (const line of breakpoints) {
+        if (byLine.has(line)) continue
+        list.push({ line, text: watchableAtRun.has(line) ? 'not reached' : 'nothing to watch on this line', tone: 'note' })
+      }
+    }
+    return list
+  }, [breakpoints, groups, peekState.dimmed, peekState.ran, watchableAtRun])
+
+  const nextPathEntry = (() => {
+    const upcoming = nextPathAfter(activePath.slug)
+    return upcoming ? (paths.find((path) => path.slug === upcoming.slug) ?? upcoming) : undefined
+  })()
+
+  // Continue opens the current exercise if unsolved, else the path's first unsolved one,
+  // else the first unsolved exercise in the next path that has one.
+  const resumeTarget = (() => {
+    const flags = links.map((item) => item.solved)
+    if (!flags[index]) return { path: activePath, index }
+    const open = flags.indexOf(false)
+    if (open >= 0) return { path: activePath, index: open }
+    const at = paths.indexOf(activePath)
+    const following = [...paths.slice(at + 1), ...paths.slice(0, at)].find((path) => path.total > 0 && path.completed < path.total)
+    return following ? { path: following, index: firstUnsolved(following) } : { path: activePath, index }
+  })()
+
+  const resume = () => openExercise(resumeTarget.path.slug, resumeTarget.index)
+
+  const jumpItems = (): { items: JumpItem[]; searchItems: JumpItem[] } => {
+    const home: JumpItem = { id: 'home', mark: '⌂', label: 'Home', sub: 'esc', run: goHome }
+    const pathItems: JumpItem[] = paths
+      .filter((path) => path.total > 0)
+      .map((path) => ({ id: `path:${path.slug}`, mark: '→', label: path.name, sub: `${path.completed} / ${path.total}`, mono: true, run: () => openPath(path) }))
+    const exerciseItems = (path: ConceptPath): JumpItem[] =>
+      exercisesForPath(path.slug).map((item, i) => ({
+        id: `exercise:${item.id}`,
+        mark: isSolved(item.id, drafts[item.id] ?? item.starter) ? '✓' : '',
+        label: item.title,
+        sub: `${path.name} · ${i + 1}`,
+        run: () => openExercise(path.slug, i),
+      }))
+    const themeItems: JumpItem[] = THEME_NAMES.map((name) => ({
+      id: `theme:${name}`,
+      mark: '◐',
+      label: `Theme: ${name}`,
+      sub: name === theme ? 'current' : 'theme',
+      run: () => progress.setTheme(name),
+    }))
+    const commands: JumpItem[] = [
+      ...(view === 'practice'
+        ? [
+            { id: 'command:beautify', mark: '›', label: 'Beautify code', sub: isMac ? '⇧⌥F' : 'Shift Alt F', run: () => void beautify() },
+            ...(exercise.declarations ? [{ id: 'command:types', mark: '›', label: typesVisible ? 'Hide type declarations' : 'Show type declarations', sub: 'command', run: toggleTypes }] : []),
+            { id: 'command:expected', mark: '›', label: showExpected ? 'Hide expected output' : 'Show expected output', sub: 'command', run: () => setShowExpected((value) => !value) },
+            { id: 'command:reset', mark: '›', label: 'Reset solution', sub: 'command', remember: false, run: resetSolution },
+          ]
+        : []),
+      { id: 'command:reset-all', mark: '›', label: 'Reset all progress', sub: 'command', remember: false, run: () => requestProgressReset(clearProgress) },
+    ]
+    return {
+      items: [home, ...pathItems, ...exerciseItems(activePath)],
+      searchItems: [home, ...pathItems, ...paths.flatMap(exerciseItems), ...themeItems, ...commands],
+    }
+  }
+
+  const palette = paletteOpen && <JumpPalette {...jumpItems()} onClose={() => setPaletteOpen(false)} />
+
+  if (!hydrated) return <div className="min-h-dvh" />
+
+  if (view === 'home') {
     return (
-      <div className="flex h-dvh flex-col">
-        {topBar}
-        <main className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col gap-4 overflow-auto p-6">
-          <div>
-            <h2 className="text-lg font-medium">
-              {solvedCount} of {exercises.length} solved
-            </h2>
-            <p className="mt-1 text-sm text-pretty text-muted-foreground">
-              You reached the end of the set. Open any exercise to review it.
-            </p>
-          </div>
-          <ul className="overflow-hidden rounded-lg border">
-            {links.map((item, itemIndex) => (
-              <li key={item.id} className="border-b last:border-b-0">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => goTo(itemIndex)}
-                >
-                  {item.solved ? (
-                    <CircleCheck className="size-4 shrink-0 text-success" aria-hidden="true" />
-                  ) : (
-                    <Circle className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  <span className="font-mono text-xs text-muted-foreground capitalize">{item.difficulty}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <Button variant="ghost" className="self-start" onClick={() => requestProgressReset(clearProgress)}>
-            Reset progress
-          </Button>
-        </main>
-        <footer className="flex h-14 shrink-0 items-center border-t px-3">
-          <Button variant="outline" onClick={closeSummary}>
-            <ChevronLeft data-icon="inline-start" />
-            Back
-          </Button>
-        </footer>
-      </div>
+      <>
+        <Home
+          paths={paths}
+          resume={{ path: resumeTarget.path, index: resumeTarget.index, exercise: exercisesForPath(resumeTarget.path.slug)[resumeTarget.index], solved: solvedFlags(resumeTarget.path.slug) }}
+          started={progress.lastActiveAt !== null || Object.keys(progress.solved).length > 0}
+          lastActiveAt={progress.lastActiveAt}
+          activity={progress.activity}
+          theme={theme}
+          onTheme={progress.setTheme}
+          onResume={resume}
+          onOpenPath={openPath}
+          onJump={() => setPaletteOpen(true)}
+        />
+        {palette}
+      </>
     )
   }
+
+  if (view === 'done') {
+    return (
+      <>
+        <PathComplete path={activePath} exercises={links} nextPath={nextPathEntry} onNext={() => nextPathEntry && openPath(nextPathEntry)} onHome={goHome} />
+        {palette}
+      </>
+    )
+  }
+
+  const focus = focusOf(exercise)
+  const support = supportOf(exercise)
+  const mixed = exercise.path === 'mixed'
+  const nextHint = canAdvance ? `${keys.enter} ${lastExercise ? 'finish path' : 'next exercise'}` : ''
+  const primaryLabel = canAdvance ? (lastExercise ? 'Finish path' : 'Next') : 'Run'
 
   return (
-    <div className="flex h-dvh flex-col">
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} actions={commandActions} />
-      {topBar}
+    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto]">
+      <TopBar pathName={activePath.name} position={index} exercises={links} onHome={goHome} onJump={() => setPaletteOpen(true)} onSelect={goTo} />
 
-      {isDesktop ? (
-        <main className="flex min-h-0 flex-1 flex-col p-3">
-          <Group orientation="horizontal" id="workspace-columns" className="min-h-0 flex-1">
-            <Panel id="data" defaultSize="42" minSize="20" className="flex flex-col gap-3">
-              {goal}
-              {showExpected ? (
-                <Group orientation="vertical" id="workspace-data" className="min-h-0 flex-1">
-                  <Panel id="a" minSize="10" className="flex flex-col">
-                    {panelA}
-                  </Panel>
-                  <Gutter />
-                  <Panel id="b" minSize="10" className="flex flex-col">
-                    {panelB}
-                  </Panel>
-                  <Gutter />
-                  <Panel id="c" minSize="10" className="flex flex-col">
-                    {panelC}
-                  </Panel>
-                </Group>
-              ) : (
-                <Group orientation="vertical" id="workspace-data-ab" className="min-h-0 flex-1">
-                  <Panel id="a" minSize="10" className="flex flex-col">
-                    {panelA}
-                  </Panel>
-                  <Gutter />
-                  <Panel id="b" minSize="10" className="flex flex-col">
-                    {panelB}
-                  </Panel>
-                </Group>
+      <main ref={stageRef} className="grid min-h-0 grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4 overflow-auto p-4">
+        {/* Scrolls on its own beside the editor (two columns from 728px); stacked, the page scrolls. */}
+        <section aria-label="Exercise" className="flex flex-col gap-[18px] py-2 pr-2 pl-1 min-[728px]:min-h-0 min-[728px]:overflow-auto">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[25px]">{exercise.title}</h1>
+              {solvedNow && <Badge>Solved</Badge>}
+            </div>
+            <p className="text-[15px] leading-[1.6] text-pretty text-neutral-200">{exercise.prompt}</p>
+          </div>
+          <ValueBlock
+            key={`${exercise.id}-A`}
+            label={exercise.labels.A}
+            value={valueA}
+            editable
+            dirty={Boolean(override && 'A' in override)}
+            onValueChange={(value) => updateInput('A', value)}
+            onRestore={() => clearInput('A')}
+          />
+          {exercise.B !== null && (
+            <ValueBlock
+              key={`${exercise.id}-B`}
+              label={exercise.labels.B}
+              value={valueB}
+              editable
+              dirty={Boolean(override && 'B' in override)}
+              onValueChange={(value) => updateInput('B', value)}
+              onRestore={() => clearInput('B')}
+            />
+          )}
+          {showExpected ? (
+            <ValueBlock label="expected" value={expectedResult.value} expected notice={expectedResult.error} onHide={() => setShowExpected(false)} />
+          ) : (
+            <Button variant="quiet" size="xs" className="-ml-1.5 self-start" onClick={() => setShowExpected(true)}>
+              Show expected
+            </Button>
+          )}
+          <details className="mt-auto text-xs text-neutral-400">
+            <summary>Learning constraints</summary>
+            <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 leading-[1.6]">
+              <dt className="text-neutral-500">Focus</dt>
+              <dd className="font-mono text-neutral-200">{mixed ? focus : `${focus}()`}</dd>
+              {!mixed && (
+                <>
+                  <dt className="text-neutral-500">Approach</dt>
+                  <dd>Use {focus}() as the primary transformation mechanism.</dd>
+                </>
               )}
-              {!showExpected && (
-                <Button variant="outline" size="sm" className="self-start" onClick={() => setShowExpected(true)}>
-                  Show expected
+              <dt className="text-neutral-500">Allowed</dt>
+              <dd className="font-mono">{['property access', 'boolean expressions', ...support].join(' · ')}</dd>
+              {!mixed && (
+                <>
+                  <dt className="text-neutral-500">Avoid here</dt>
+                  <dd className="font-mono">reduce() · Object.entries() · Object.fromEntries()</dd>
+                </>
+              )}
+            </dl>
+          </details>
+        </section>
+
+        <section aria-label="Solution" className="flex min-h-[420px] flex-col gap-3">
+          <div
+            className={cn(
+              'flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-[10px] bg-surface transition-shadow duration-300',
+              runMatches
+                ? 'shadow-[0_0_0_1px_var(--color-accent),0_0_40px_-12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]'
+                : 'shadow-[0_0_0_1px_var(--color-neutral-800)]',
+            )}
+          >
+            <div className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-400">
+              <span className="min-w-0 truncate">
+                <span className="text-text">solve</span>({exercise.labels.A}, {exercise.labels.B})
+              </span>
+              <span className="ml-auto hidden font-sans text-[11px] whitespace-nowrap text-neutral-500 sm:inline" role={formatError ? 'alert' : undefined} title={formatError ?? undefined}>
+                {isFormatting ? 'Formatting…' : formatError ? <span className="text-neutral-300">Couldn&apos;t format</span> : 'Click a line number to watch it'}
+              </span>
+              {exercise.declarations && (
+                <Button variant="quiet" size="xs" className={cn('ml-auto sm:ml-0', typesVisible && 'bg-text/7 text-text')} aria-pressed={typesVisible} onClick={toggleTypes}>
+                  Types
                 </Button>
               )}
-            </Panel>
-            <Gutter />
-            <Panel id="work" minSize="25">
-              <Group orientation="vertical" id="workspace-work" className="h-full">
-                <Panel id="editor" defaultSize="60" minSize="15" className="flex flex-col">
-                  {editor}
-                </Panel>
-                <Gutter />
-                <Panel id="result" minSize="10" className="flex flex-col">
-                  {result}
-                </Panel>
-              </Group>
-            </Panel>
-          </Group>
-        </main>
-      ) : (
-        <main className="flex min-h-0 flex-1 flex-col">
-          <div className="px-3 pt-3">{goal}</div>
-          <div role="tablist" aria-label="Workspace" className="flex h-9 shrink-0 items-stretch gap-4 border-b px-3">
-            {(
-              [
-                ['inputs', 'Inputs'],
-                ['code', 'Code'],
-                ['output', 'Output'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={mobilePane === id}
-                onClick={() => setMobilePane(id)}
-                className={cn(
-                  'flex h-full items-center border-b-2 px-1 font-mono text-xs',
-                  mobilePane === id ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground',
-                )}
-              >
-                {label}
-              </button>
-            ))}
+              <Button variant="quiet" size="xs" className={cn(!exercise.declarations && 'ml-auto sm:ml-0')} disabled={code === exercise.starter} onClick={resetSolution}>
+                Reset
+              </Button>
+            </div>
+            <div className="mx-1 mb-1 min-h-0 flex-1 overflow-hidden rounded-[7px] bg-bg">
+              <CodeEditor
+                key={exercise.id}
+                value={code}
+                params={exercise.params}
+                onChange={handleChange}
+                onPrimary={primary}
+                onNext={next}
+                onBeautify={() => void beautify()}
+                breakpoints={breakpoints}
+                onBreakpointsChange={changeBreakpoints}
+                ghosts={ghosts}
+                watchShortcut={keys.dot}
+                onReady={onEditorReady}
+              />
+            </div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col p-3">
-            {mobilePane === 'inputs' && (
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-                <div className="flex h-64 shrink-0 flex-col">{panelA}</div>
-                <div className="flex h-56 shrink-0 flex-col">{panelB}</div>
-                {showExpected ? (
-                  <div className="flex h-56 shrink-0 flex-col">{panelC}</div>
-                ) : (
-                  <Button variant="outline" size="sm" className="self-start" onClick={() => setShowExpected(true)}>
-                    Show expected
-                  </Button>
-                )}
-              </div>
-            )}
-            {mobilePane === 'code' && editor}
-            {mobilePane === 'output' && result}
-          </div>
-        </main>
-      )}
 
-      <footer className="flex h-14 shrink-0 items-center gap-2 border-t px-3">
-        <div className="hidden items-center gap-3 text-xs text-muted-foreground md:flex">
-          <span className="flex items-center gap-1.5">
-            <Kbd mod>Enter</Kbd> run
+          <OutputPanel
+            ref={outputRef}
+            tab={tab}
+            onTab={setTab}
+            state={run}
+            expected={expectedResult.value}
+            correct={runMatches}
+            isStale={isStale}
+            approach={exercise.approach}
+            solution={exercise.solution}
+            successTitle={hasOverride ? 'Matches these inputs' : 'Correct'}
+            successHint={hasOverride && !solvedNow ? 'Restore the sample to record this exercise.' : undefined}
+            nextHint={nextHint}
+            focus={focus}
+            focusViolation={focusViolation}
+            groups={groups}
+            peekCount={peekCount}
+            dimmed={peekState.dimmed}
+            peekSample={`peek(${exercise.labels.A})  ·  peek(value, "doubled")`}
+          />
+        </section>
+      </main>
+
+      <footer className="rule-t flex items-center gap-2 px-4 py-2.5">
+        <div className="hidden gap-4 text-xs whitespace-nowrap text-neutral-500 lg:flex">
+          <span>
+            <Shortcut className="text-xs">{keys.enter}</Shortcut> {canAdvance ? (lastExercise ? 'finish' : 'next') : 'run'}
           </span>
-          <span className="flex items-center gap-1.5">
-            <Kbd mod shift>
-              Enter
-            </Kbd>{' '}
-            {lastExercise ? 'finish' : 'next'}
+          <span>
+            <Shortcut className="text-xs">{keys.dot}</Shortcut> watch line
+          </span>
+          <span>
+            <Shortcut className="text-xs">{keys.alt}</Shortcut> prev / skip
+          </span>
+          <span>
+            <Shortcut className="text-xs">esc</Shortcut> home
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={goPrev} disabled={index === 0} aria-label="Previous exercise">
-            <ChevronLeft data-icon="inline-start" />
-            <span className="hidden sm:inline">Previous</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <Button aria-label="Previous exercise" disabled={index === 0} onClick={goPrev}>
+            ←
           </Button>
-          <Button variant="ghost" onClick={goNext} aria-label="Skip this exercise and leave it unsolved">
-            <SkipForward data-icon="inline-start" />
+          <Button aria-label="Skip this exercise and leave it unsolved" onClick={goNext}>
             Skip
           </Button>
-          <Button variant={canAdvance ? 'outline' : 'default'} onClick={() => void execute()} disabled={run.status === 'running'} className="min-w-24">
-            <Play data-icon="inline-start" />
-            Run
-          </Button>
-          <Button variant={canAdvance ? 'default' : 'outline'} onClick={next} disabled={!canAdvance}>
-            {lastExercise ? 'Finish' : 'Next'}
-            <ArrowRight data-icon="inline-end" />
+          <Button
+            ref={primaryRef}
+            variant="primary"
+            className={cn('min-w-32 gap-2.5', canAdvance && 'bg-accent/18 hover:bg-accent/24')}
+            disabled={!canAdvance && run.status === 'running'}
+            onClick={primary}
+          >
+            {primaryLabel} <span className="font-mono text-[11px] opacity-75">{keys.enter}</span>
           </Button>
         </div>
       </footer>
+      {palette}
     </div>
   )
 }

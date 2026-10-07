@@ -1,12 +1,14 @@
 import { parser } from '@lezer/javascript'
 import type { SyntaxNode } from '@lezer/common'
 
-// Turns breakpoint lines into peek() calls before a run. The editor's source is never changed.
+// Turns breakpoint lines and peek() calls into line-tagged __peekAt() calls before a run.
+// The editor's source is never changed, and no edit adds a newline, so line numbers hold.
 
 const tsParser = parser.configure({ dialect: 'ts' })
 const STATEMENTS = new Set(['VariableDeclaration', 'ReturnStatement', 'ExpressionStatement', 'IfStatement', 'WhileStatement', 'ForStatement'])
 // Calls whose return value is less useful than the collection they change.
 const MUTATORS = new Set(['push', 'unshift', 'pop', 'shift', 'splice', 'sort', 'reverse', 'fill', 'set', 'add', 'delete', 'clear'])
+const MAX_LABEL = 40
 
 type Edit = { at: number; text: string; close: boolean; depth: number }
 
@@ -25,6 +27,16 @@ function lineAt(starts: number[], pos: number) {
     else high = mid - 1
   }
   return low + 1
+}
+
+/** Source text as a short one-line label, quoted for insertion into code. */
+function labelOf(text: string) {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return JSON.stringify(flat.length > MAX_LABEL ? `${flat.slice(0, MAX_LABEL - 1)}…` : flat)
+}
+
+function peekAt(line: number, label: string) {
+  return `__peekAt(${line}, ${label})`
 }
 
 /** The outermost statement starting on each line, keyed by 1-based line number. */
@@ -63,45 +75,51 @@ function bindingNames(pattern: SyntaxNode, source: string) {
   return pattern.name === 'ArrayPattern' ? `[${names.join(', ')}]` : `{ ${names.join(', ')} }`
 }
 
-function wrap(node: SyntaxNode, label: string, depth: number): Edit[] {
+function wrap(node: SyntaxNode, line: number, label: string, depth: number): Edit[] {
   return [
-    { at: node.from, text: 'peek((', close: false, depth },
-    { at: node.to, text: `), ${label})`, close: true, depth },
+    { at: node.from, text: `${peekAt(line, label)}((`, close: false, depth },
+    { at: node.to, text: '))', close: true, depth },
   ]
 }
 
 function edgesOf(node: SyntaxNode, line: number, depth: number, source: string): Edit[] | null {
-  const label = JSON.stringify(`line ${line}`)
+  const text = (part: SyntaxNode) => source.slice(part.from, part.to)
   const parts = children(node)
 
   switch (node.name) {
     case 'VariableDeclaration': {
-      const inits = parts.filter((part, i) => parts[i - 1]?.name === 'Equals')
-      return inits.length ? inits.flatMap((init) => wrap(init, label, depth)) : null
+      const edits = parts.flatMap((part, i) => {
+        if (parts[i - 1]?.name !== 'Equals') return []
+        const binding = parts.slice(0, i - 1).reverse().find((item) => item.name === 'VariableDefinition' || item.name.endsWith('Pattern'))
+        return wrap(part, line, labelOf(binding ? text(binding) : text(part)), depth)
+      })
+      return edits.length ? edits : null
     }
     case 'ReturnStatement': {
       const value = parts.find((part) => part.name !== 'return' && part.name !== ';')
-      return value ? wrap(value, label, depth) : null
+      return value ? wrap(value, line, '"return"', depth) : null
     }
     case 'ExpressionStatement': {
       const expr = parts[0]
       const callee = expr.name === 'CallExpression' ? expr.firstChild : null
       const method = callee?.name === 'MemberExpression' ? callee.lastChild : null
       const receiver = callee && method ? source.slice(callee.from, method.from).replace(/\??\.$/, '') : ''
-      if (method && MUTATORS.has(source.slice(method.from, method.to)) && /^[\w$.]+$/.test(receiver)) {
+      if (method && MUTATORS.has(text(method)) && /^[\w$.]+$/.test(receiver)) {
         const braced = node.parent?.name !== 'Block' && node.parent?.name !== 'Script'
         return [
           ...(braced ? [{ at: node.from, text: '{', close: false, depth }] : []),
-          { at: node.to, text: `;peek(${receiver}, ${label});${braced ? '}' : ''}`, close: true, depth },
+          { at: node.to, text: `;${peekAt(line, labelOf(receiver))}(${receiver});${braced ? '}' : ''}`, close: true, depth },
         ]
       }
-      return wrap(expr, label, depth)
+      // An assignment or update reads best under the name it changes.
+      const target = expr.name === 'AssignmentExpression' ? expr.firstChild : expr.name === 'PostfixExpression' || expr.name === 'UnaryExpression' ? expr.getChild('VariableName') : null
+      return wrap(expr, line, labelOf(text(target ?? expr)), depth)
     }
     case 'IfStatement':
     case 'WhileStatement': {
       const condition = node.getChild('ParenthesizedExpression')
       const inner = condition && children(condition).find((part) => part.name !== '(' && part.name !== ')')
-      return inner ? wrap(inner, label, depth) : null
+      return inner ? wrap(inner, line, labelOf(text(inner)), depth) : null
     }
     case 'ForStatement': {
       const spec = parts[1]
@@ -117,7 +135,7 @@ function edgesOf(node: SyntaxNode, line: number, depth: number, source: string):
         binding = target ? bindingNames(target, source) : null
       }
       if (!binding) return null
-      const call = `peek(${binding}, ${label});`
+      const call = `${peekAt(line, labelOf(binding))}(${binding});`
       if (body.name === 'Block') return [{ at: body.from + 1, text: call, close: false, depth: depth + 1 }]
       return [
         { at: body.from, text: `{${call}`, close: false, depth },
@@ -128,6 +146,29 @@ function edgesOf(node: SyntaxNode, line: number, depth: number, source: string):
   return null
 }
 
+/** Rewrites each `peek(value, label?)` to carry its line, with the value's source text as the default label. */
+function tagPeeks(source: string) {
+  const starts = lineStarts(source)
+  const edits: { from: number; to: number; text: string }[] = []
+  tsParser.parse(source).iterate({
+    enter(ref) {
+      if (ref.name !== 'CallExpression') return
+      const callee = ref.node.firstChild
+      if (callee?.name !== 'VariableName' || source.slice(callee.from, callee.to) !== 'peek') return
+      const first = ref.node.getChild('ArgList')?.firstChild?.nextSibling
+      const label = first && first.name !== ')' ? labelOf(source.slice(first.from, first.to)) : 'undefined'
+      edits.push({ from: callee.from, to: callee.to, text: peekAt(lineAt(starts, callee.from), label) })
+    },
+  })
+  let out = ''
+  let cursor = 0
+  for (const edit of edits) {
+    out += source.slice(cursor, edit.from) + edit.text
+    cursor = edit.to
+  }
+  return out + source.slice(cursor)
+}
+
 /** 1-based line numbers that can hold a breakpoint. */
 export function breakableLines(source: string) {
   const lines = new Set<number>()
@@ -135,20 +176,21 @@ export function breakableLines(source: string) {
   return lines
 }
 
-/** Returns `source` with a peek() call inserted for each breakpoint line. */
+/** Returns `source` with its peek() calls tagged by line and a capture inserted for each breakpoint line. */
 export function instrument(source: string, lines: number[]) {
-  const statements = statementsByLine(source)
+  const tagged = tagPeeks(source)
+  const statements = statementsByLine(tagged)
   const edits = lines.flatMap((line) => {
     const statement = statements.get(line)
-    return statement ? edgesOf(statement.node, line, statement.depth, source) ?? [] : []
+    return statement ? edgesOf(statement.node, line, statement.depth, tagged) ?? [] : []
   })
   // At a shared position, close inner statements first, then open outer ones first.
   edits.sort((a, b) => a.at - b.at || Number(b.close) - Number(a.close) || (a.close ? b.depth - a.depth : a.depth - b.depth))
   let out = ''
   let cursor = 0
   for (const edit of edits) {
-    out += source.slice(cursor, edit.at) + edit.text
+    out += tagged.slice(cursor, edit.at) + edit.text
     cursor = edit.at
   }
-  return out + source.slice(cursor)
+  return out + tagged.slice(cursor)
 }

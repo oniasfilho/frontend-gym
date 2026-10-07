@@ -1,14 +1,25 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { javascript } from '@codemirror/lang-javascript'
-import { syntaxTree } from '@codemirror/language'
-import { Decoration, EditorView, GutterMarker, gutter, hoverTooltip, keymap, lineNumbers } from '@codemirror/view'
-import { Prec, RangeSet, StateEffect, StateField } from '@codemirror/state'
-import { githubDark, githubLight } from '@uiw/codemirror-theme-github'
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
+import { tags as t } from '@lezer/highlight'
+import type { SyntaxNode } from '@lezer/common'
+import {
+  Decoration,
+  EditorView,
+  GutterMarker,
+  ViewPlugin,
+  WidgetType,
+  gutter,
+  hoverTooltip,
+  keymap,
+  type DecorationSet,
+  type ViewUpdate,
+} from '@codemirror/view'
+import { Prec, RangeSet, RangeSetBuilder, StateEffect, StateField, type EditorState } from '@codemirror/state'
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
-import { useTheme } from 'next-themes'
 import {
   ARRAY_METHODS,
   aliasShapes,
@@ -22,16 +33,15 @@ import {
 } from '@/lib/shape'
 import { breakableLines } from '@/lib/breakpoints'
 
-class BreakpointMarker extends GutterMarker {
-  toDOM() {
-    const dot = document.createElement('span')
-    dot.className = 'cm-breakpoint'
-    return dot
-  }
-}
+/** Text shown after the end of a line: a peeked value, or a note about a watched line. */
+export type Ghost = { line: number; text: string; tone: 'value' | 'dim' | 'note' }
 
-const breakpointMarker = new BreakpointMarker()
+// — Watches (breakpoints) —
+
 const toggleBreakpoint = StateEffect.define<number>()
+
+class WatchLineMarker extends GutterMarker {}
+const watchLineMarker = new WatchLineMarker()
 
 const breakpoints = StateField.define<RangeSet<GutterMarker>>({
   create: () => RangeSet.empty,
@@ -43,7 +53,7 @@ const breakpoints = StateField.define<RangeSet<GutterMarker>>({
       set.between(effect.value, effect.value, () => {
         present = true
       })
-      set = present ? set.update({ filter: (from) => from !== effect.value }) : set.update({ add: [breakpointMarker.range(effect.value)] })
+      set = present ? set.update({ filter: (from) => from !== effect.value }) : set.update({ add: [watchLineMarker.range(effect.value)] })
     }
     return set
   },
@@ -51,84 +61,300 @@ const breakpoints = StateField.define<RangeSet<GutterMarker>>({
     EditorView.decorations.compute([field], (state) => {
       const lines: number[] = []
       for (let cursor = state.field(field).iter(); cursor.value; cursor.next()) lines.push(cursor.from)
-      return Decoration.set([...new Set(lines)].map((from) => Decoration.line({ class: 'cm-breakpoint-line' }).range(from)))
+      return Decoration.set([...new Set(lines)].map((from) => Decoration.line({ class: 'cm-watch-line' }).range(from)))
     }),
 })
 
-function breakpointLines(view: EditorView) {
+const watchable = StateField.define<Set<number>>({
+  create: (state) => breakableLines(state.doc.toString()),
+  update: (lines, tr) => (tr.docChanged ? breakableLines(tr.state.doc.toString()) : lines),
+})
+
+function isWatched(state: EditorState, lineStart: number) {
+  let present = false
+  state.field(breakpoints).between(lineStart, lineStart, () => {
+    present = true
+  })
+  return present
+}
+
+function breakpointLines(state: EditorState) {
   const lines = new Set<number>()
-  for (let cursor = view.state.field(breakpoints).iter(); cursor.value; cursor.next()) lines.add(view.state.doc.lineAt(cursor.from).number)
+  for (let cursor = state.field(breakpoints).iter(); cursor.value; cursor.next()) lines.add(state.doc.lineAt(cursor.from).number)
   return [...lines].sort((a, b) => a - b)
 }
 
-function onGutterClick(view: EditorView, line: { from: number }) {
-  const number = view.state.doc.lineAt(line.from).number
-  let present = false
-  view.state.field(breakpoints).between(line.from, line.from, () => {
-    present = true
-  })
-  if (present || breakableLines(view.state.doc.toString()).has(number)) view.dispatch({ effects: toggleBreakpoint.of(line.from) })
+function toggleWatchAt(view: EditorView, pos: number) {
+  const line = view.state.doc.lineAt(pos)
+  if (isWatched(view.state, line.from) || view.state.field(watchable).has(line.number)) view.dispatch({ effects: toggleBreakpoint.of(line.from) })
   return true
 }
 
-const surface = EditorView.theme({
-  '&': { height: '100%', fontSize: '13.5px', backgroundColor: 'transparent' },
-  '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
-  '.cm-gutters': { backgroundColor: 'transparent', borderRight: 'none' },
-  '.cm-breakpoint-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', paddingLeft: '6px', cursor: 'pointer' },
-  '.cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
-  '.cm-breakpoint': { width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: 'var(--destructive)' },
-  '.cm-breakpoint-line': { backgroundColor: 'color-mix(in oklab, var(--destructive) 10%, transparent)' },
-  '.cm-content': { paddingBlock: '12px' },
-  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'color-mix(in oklab, var(--muted) 60%, transparent)' },
-  '.cm-tooltip': {
-    overflow: 'hidden',
-    border: '1px solid var(--border)',
-    borderRadius: '8px',
-    backgroundColor: 'var(--popover)',
-    boxShadow: '0 10px 30px color-mix(in oklab, black 18%, transparent)',
+class WatchMarker extends GutterMarker {
+  constructor(
+    readonly number: number,
+    readonly watched: boolean,
+    readonly canWatch: boolean,
+    readonly shortcut: string,
+  ) {
+    super()
+  }
+
+  eq(other: WatchMarker) {
+    return other.number === this.number && other.watched === this.watched && other.canWatch === this.canWatch && other.shortcut === this.shortcut
+  }
+
+  toDOM() {
+    const root = document.createElement('span')
+    root.className = this.watched ? 'cm-watch cm-watch-on' : this.canWatch ? 'cm-watch' : 'cm-watch cm-watch-off'
+    root.title = this.watched ? `Stop watching line ${this.number}` : this.canWatch ? `Watch line ${this.number} (${this.shortcut})` : 'Nothing to watch on this line'
+    const dot = document.createElement('span')
+    dot.className = 'cm-watch-dot'
+    const number = document.createElement('span')
+    number.className = 'cm-watch-number'
+    number.textContent = String(this.number)
+    root.append(dot, number)
+    return root
+  }
+}
+
+function watchGutter(shortcut: string) {
+  return gutter({
+    class: 'cm-watch-gutter',
+    lineMarker(view, line) {
+      const number = view.state.doc.lineAt(line.from).number
+      return new WatchMarker(number, isWatched(view.state, line.from), view.state.field(watchable).has(number), shortcut)
+    },
+    lineMarkerChange: (update) => update.docChanged || update.startState.field(breakpoints) !== update.state.field(breakpoints),
+    initialSpacer: () => new WatchMarker(9, false, true, shortcut),
+    domEventHandlers: { mousedown: (view, line) => toggleWatchAt(view, line.from) },
+  })
+}
+
+// — Inline peek values —
+
+const setGhosts = StateEffect.define<Ghost[]>()
+
+class GhostWidget extends WidgetType {
+  constructor(
+    readonly text: string,
+    readonly tone: Ghost['tone'],
+  ) {
+    super()
+  }
+
+  eq(other: GhostWidget) {
+    return other.text === this.text && other.tone === this.tone
+  }
+
+  toDOM() {
+    const element = document.createElement('span')
+    element.className = `cm-ghost cm-ghost-${this.tone}`
+    element.textContent = this.text
+    element.setAttribute('aria-hidden', 'true')
+    return element
+  }
+}
+
+// Ghosts are anchored to line starts so they follow their line until the next run replaces them.
+const ghosts = StateField.define<{ from: number; ghost: Ghost }[]>({
+  create: () => [],
+  update(placed, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setGhosts)) continue
+      const doc = tr.state.doc
+      return effect.value.filter((ghost) => ghost.line >= 1 && ghost.line <= doc.lines).map((ghost) => ({ from: doc.line(ghost.line).from, ghost }))
+    }
+    if (!tr.docChanged) return placed
+    // A whole-document replace (reset, types toggle) leaves no line to follow.
+    if (tr.changes.touchesRange(0, tr.startState.doc.length) === 'cover') return []
+    return placed.map((item) => ({ ...item, from: tr.changes.mapPos(item.from, -1) }))
   },
-  '.cm-shape-hover': { maxWidth: '28rem', maxHeight: '18rem', overflow: 'auto', padding: '8px 10px' },
-  '.cm-shape-hover-label': {
-    marginBottom: '4px',
-    color: 'var(--muted-foreground)',
-    fontFamily: 'var(--font-mono)',
-    fontSize: '11px',
-  },
-  '.cm-shape-hover-body': {
-    margin: 0,
-    color: 'var(--popover-foreground)',
-    fontFamily: 'var(--font-mono)',
-    fontSize: '12px',
-    lineHeight: '1.55',
-    whiteSpace: 'pre',
-  },
+  provide: (field) =>
+    EditorView.decorations.compute([field], (state) =>
+      Decoration.set(
+        state.field(field).map(({ from, ghost }) => Decoration.widget({ widget: new GhostWidget(ghost.text, ghost.tone), side: 1 }).range(state.doc.lineAt(from).to)),
+        true,
+      ),
+    ),
 })
+
+// — Syntax colors —
+
+const highlight = HighlightStyle.define([
+  { tag: [t.keyword, t.self], color: 'var(--color-accent-400)' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName), t.function(t.definition(t.variableName))], color: 'var(--syn-fn)' },
+  { tag: [t.variableName, t.definition(t.variableName)], color: 'var(--color-neutral-100)' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--color-neutral-300)' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'var(--syn-str)' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--syn-num)' },
+  { tag: [t.operator, t.function(t.punctuation)], color: 'var(--color-accent-300)' },
+  { tag: [t.punctuation, t.derefOperator], color: 'var(--color-neutral-500)' },
+  { tag: t.comment, color: 'var(--color-neutral-600)', fontStyle: 'italic' },
+  { tag: [t.typeName, t.className], color: 'var(--color-neutral-400)' },
+])
+
+const LITERALS = new Set(['undefined', 'NaN', 'Infinity'])
+const paramMark = Decoration.mark({ class: 'cm-param' })
+const literalMark = Decoration.mark({ class: 'cm-literal' })
+
+function isParameter(node: SyntaxNode) {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent.name === 'ParamList') return true
+    if (!parent.name.includes('Pattern') && parent.name !== 'PatternProperty') return false
+  }
+  return false
+}
+
+// Parameters read in italics wherever their name appears, like the design's tokenizer.
+function nameDecorations(state: EditorState) {
+  const tree = syntaxTree(state)
+  const doc = state.doc
+  const params = new Set<string>()
+  tree.iterate({
+    enter(node) {
+      if (node.name === 'VariableDefinition' && isParameter(node.node)) params.add(doc.sliceString(node.from, node.to))
+    },
+  })
+  const builder = new RangeSetBuilder<Decoration>()
+  tree.iterate({
+    enter(node) {
+      if (node.name !== 'VariableName' && node.name !== 'VariableDefinition') return
+      const name = doc.sliceString(node.from, node.to)
+      if (node.name === 'VariableName' && LITERALS.has(name)) builder.add(node.from, node.to, literalMark)
+      else if (params.has(name) && !(node.node.parent?.name === 'CallExpression' && node.node.parent.firstChild?.from === node.from)) builder.add(node.from, node.to, paramMark)
+    },
+  })
+  return builder.finish()
+}
+
+const names = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = nameDecorations(view.state)
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = nameDecorations(update.state)
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+)
+
+const tint = (color: string, amount: number) => `color-mix(in srgb, var(${color}) ${amount}%, transparent)`
+
+const surface = EditorView.theme(
+  {
+    '&': { height: '100%', fontSize: '13.5px', color: 'var(--color-neutral-100)', backgroundColor: 'transparent' },
+    '&.cm-focused': { outline: 'none' },
+    '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '21px' },
+    '.cm-content': { padding: '14px 14px 14px 4px', caretColor: 'var(--color-accent-300)' },
+    '.cm-content:focus-visible': { outline: 'none' },
+    '.cm-cursor, .cm-dropCursor': { borderLeft: '2px solid var(--color-accent-300)' },
+    '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      backgroundColor: tint('--color-accent', 30),
+    },
+    '.cm-activeLine': { backgroundColor: tint('--color-text', 3) },
+    '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': { backgroundColor: tint('--color-accent', 22), outline: 'none' },
+    '.cm-param': { color: 'var(--syn-param)', fontStyle: 'italic' },
+    '.cm-literal': { color: 'var(--syn-num)' },
+
+    '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent' },
+    '.cm-watch-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 10px', cursor: 'pointer' },
+    '.cm-watch-gutter .cm-gutterElement:has(.cm-watch-off)': { cursor: 'default' },
+    '.cm-watch': { display: 'flex', alignItems: 'center', gap: '7px', color: 'var(--color-neutral-700)' },
+    '.cm-activeLineGutter .cm-watch': { color: 'var(--color-neutral-500)' },
+    '.cm-gutterElement:hover .cm-watch:not(.cm-watch-off), .cm-watch.cm-watch-on': { color: 'var(--color-accent-300)' },
+    '.cm-watch-dot': { width: '7px', height: '7px', borderRadius: '50%' },
+    '.cm-watch-on .cm-watch-dot': { backgroundColor: 'var(--color-accent)' },
+    '.cm-watch-number': { minWidth: '2ch', textAlign: 'right' },
+    '.cm-watch-line': { backgroundColor: tint('--color-accent', 9) },
+
+    '.cm-ghost': {
+      display: 'inline-block',
+      maxWidth: 'calc(100% - 3ch)',
+      marginLeft: '3ch',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'pre',
+      verticalAlign: 'top',
+      fontSize: '12px',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    },
+    '.cm-ghost-value': { color: 'var(--color-accent-300)' },
+    '.cm-ghost-dim, .cm-ghost-note': { color: 'var(--color-neutral-600)' },
+
+    '.cm-tooltip': {
+      overflow: 'hidden',
+      border: 'none',
+      borderRadius: '10px',
+      color: 'var(--color-text)',
+      backgroundColor: 'var(--color-surface)',
+      boxShadow: 'var(--shadow-md)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul': { padding: '4px', fontFamily: 'var(--font-mono)', fontSize: '12.5px' },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li': { padding: '3px 8px', borderRadius: '6px' },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': { color: 'var(--color-text)', backgroundColor: tint('--color-accent', 16) },
+    '.cm-completionMatchedText': { textDecoration: 'none', color: 'var(--color-accent-300)' },
+    '.cm-completionDetail': { color: 'var(--color-neutral-500)', fontStyle: 'normal' },
+    '.cm-shape-hover': { maxWidth: '28rem', maxHeight: '18rem', overflow: 'auto', padding: '8px 10px' },
+    '.cm-shape-hover-label': { marginBottom: '4px', color: 'var(--color-neutral-400)', fontFamily: 'var(--font-mono)', fontSize: '11px' },
+    '.cm-shape-hover-body': {
+      margin: 0,
+      color: 'var(--color-neutral-200)',
+      fontFamily: 'var(--font-mono)',
+      fontSize: '12px',
+      lineHeight: '1.55',
+      whiteSpace: 'pre',
+    },
+
+    '.cm-panels': { color: 'var(--color-text)', backgroundColor: 'var(--color-surface)' },
+    '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--color-divider)' },
+    '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--color-divider)' },
+    '.cm-textfield': { border: '1px solid var(--color-divider)', borderRadius: '6px', backgroundColor: 'var(--color-bg)' },
+    '.cm-button': { border: '1px solid var(--color-divider)', borderRadius: '6px', backgroundImage: 'none', backgroundColor: 'transparent', color: 'var(--color-text)' },
+    '.cm-searchMatch': { backgroundColor: tint('--color-accent', 20), outline: 'none' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: tint('--color-accent', 38) },
+  },
+  { dark: true },
+)
+
+const editorTheme = [surface, syntaxHighlighting(highlight)]
 
 export function CodeEditor({
   value,
   onChange,
-  onRun,
+  onPrimary,
   onNext,
   onBeautify,
   breakpoints: initialBreakpoints,
   onBreakpointsChange,
   params,
+  ghosts: ghostList,
+  watchShortcut,
+  onReady,
 }: {
   value: string
   onChange: (value: string) => void
-  onRun: () => void
+  /** Run, or move on when the answer is already correct. */
+  onPrimary: () => void
   onNext: () => void
   onBeautify: () => void
   /** Restored when the editor mounts; afterwards the editor owns them and reports changes. */
   breakpoints: number[]
   onBreakpointsChange: (lines: number[]) => void
   params: Param[]
+  ghosts: Ghost[]
+  watchShortcut: string
+  onReady?: (view: EditorView | null) => void
 }) {
-  const { resolvedTheme } = useTheme()
-  const handlers = useRef({ onRun, onNext, onBeautify, onBreakpointsChange })
-  handlers.current = { onRun, onNext, onBeautify, onBreakpointsChange }
+  const handlers = useRef({ onPrimary, onNext, onBeautify, onBreakpointsChange })
+  handlers.current = { onPrimary, onNext, onBeautify, onBreakpointsChange }
+  const viewRef = useRef<EditorView | null>(null)
+  const ghostsRef = useRef(ghostList)
+  ghostsRef.current = ghostList
 
   const extensions = useMemo(() => {
     const support = javascript({ typescript: true })
@@ -136,29 +362,24 @@ export function CodeEditor({
       support,
       support.language.data.of({ autocomplete: shapeCompletions(params) }),
       hoverTooltip(shapeHover(params), { hideOnChange: true }),
-      Prec.highest(surface),
       EditorView.lineWrapping,
+      names,
       breakpoints,
-      gutter({
-        class: 'cm-breakpoint-gutter',
-        markers: (view) => view.state.field(breakpoints),
-        initialSpacer: () => breakpointMarker,
-        domEventHandlers: { mousedown: onGutterClick },
-      }),
-      lineNumbers({ domEventHandlers: { mousedown: onGutterClick } }),
+      watchable,
+      ghosts,
+      watchGutter(watchShortcut),
       EditorView.updateListener.of((update) => {
         if (update.startState.field(breakpoints) === update.state.field(breakpoints)) return
-        const before = new Set<number>()
-        for (let cursor = update.startState.field(breakpoints).iter(); cursor.value; cursor.next()) before.add(update.startState.doc.lineAt(cursor.from).number)
-        const after = breakpointLines(update.view)
-        if (after.length !== before.size || after.some((line) => !before.has(line))) handlers.current.onBreakpointsChange(after)
+        const before = breakpointLines(update.startState)
+        const after = breakpointLines(update.state)
+        if (after.length !== before.length || after.some((line, i) => line !== before[i])) handlers.current.onBreakpointsChange(after)
       }),
       Prec.highest(
         keymap.of([
           {
             key: 'Mod-Enter',
             run: () => {
-              handlers.current.onRun()
+              handlers.current.onPrimary()
               return true
             },
           },
@@ -176,16 +397,23 @@ export function CodeEditor({
               return true
             },
           },
+          { key: 'Mod-.', run: (view) => toggleWatchAt(view, view.state.selection.main.head) },
         ]),
       ),
     ]
-  }, [params])
+  }, [params, watchShortcut])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: setGhosts.of(ghostList) })
+  }, [ghostList])
+
+  useEffect(() => () => onReady?.(null), [onReady])
 
   return (
     <CodeMirror
       value={value}
       onChange={onChange}
-      theme={resolvedTheme === 'dark' ? githubDark : githubLight}
+      theme={editorTheme}
       extensions={extensions}
       height="100%"
       className="h-full"
@@ -193,8 +421,12 @@ export function CodeEditor({
       aria-label="Solution editor"
       basicSetup={{ foldGutter: false, lineNumbers: false, highlightActiveLineGutter: true, tabSize: 2 }}
       onCreateEditor={(view) => {
+        viewRef.current = view
+        onReady?.(view)
         const restore = initialBreakpoints.filter((line) => line <= view.state.doc.lines)
         if (restore.length) view.dispatch({ effects: restore.map((line) => toggleBreakpoint.of(view.state.doc.line(line).from)) })
+        // Coming back to an exercise shows its last values again.
+        if (ghostsRef.current.length) view.dispatch({ effects: setGhosts.of(ghostsRef.current) })
         const doc = view.state.doc.toString()
         const signature = doc.lastIndexOf('function solve')
         const brace = doc.indexOf('{\n', signature)

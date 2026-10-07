@@ -16,7 +16,7 @@ export function forPath(path: Exclude<PathSlug, 'mixed'>, mentalModel: string) {
       id, title, path,
       concepts: [path, ...(options.support ?? [])],
       difficulty: options.difficulty ?? 'easy',
-      prompt: `${prompt}${extra === null ? ' The extra input is unused.' : ''}`,
+      prompt,
       approach: options.approach ?? mentalModel,
       stage: options.stage,
       A: input, B: extra,

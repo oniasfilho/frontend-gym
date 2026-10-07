@@ -1,39 +1,47 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { dayKey, type Activity } from '@/lib/activity'
+import { isThemeName, type ThemeName } from '@/lib/themes'
 
+// app/layout.tsx reads the theme from this key before first paint.
 const STORAGE_KEY = 'reshape:progress:v1'
-
-type View = 'exercise' | 'summary'
 
 type Progress = {
   pathSlug: string
   index: number
   drafts: Record<string, string>
   solved: Record<string, string | true>
-  view: View
   lastActiveAt: number | null
+  /** First solves per local day, keyed YYYY-MM-DD. */
+  activity: Activity
+  theme: ThemeName | null
 }
 
-const EMPTY: Progress = { pathSlug: 'for-of', index: 0, drafts: {}, solved: {}, view: 'exercise', lastActiveAt: null }
+const EMPTY: Progress = { pathSlug: 'for-of', index: 0, drafts: {}, solved: {}, lastActiveAt: null, activity: {}, theme: null }
 
 function read(): Progress {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return EMPTY
-    const parsed = JSON.parse(raw) as Partial<Progress> & { solved?: Record<string, unknown> }
+    const parsed = JSON.parse(raw) as Partial<Progress> & { solved?: Record<string, unknown>; activity?: Record<string, unknown> }
     const solved: Progress['solved'] = {}
     for (const [id, value] of Object.entries(parsed.solved ?? {})) {
       if (value === true) solved[id] = true
       else if (typeof value === 'string') solved[id] = value
+    }
+    const activity: Activity = {}
+    for (const [day, count] of Object.entries(parsed.activity ?? {})) {
+      if (typeof count === 'number' && count > 0) activity[day] = count
     }
     return {
       pathSlug: typeof parsed.pathSlug === 'string' ? parsed.pathSlug : EMPTY.pathSlug,
       index: typeof parsed.index === 'number' && Number.isInteger(parsed.index) ? parsed.index : 0,
       drafts: parsed.drafts && typeof parsed.drafts === 'object' ? parsed.drafts : {},
       solved,
-      view: parsed.view === 'summary' ? 'summary' : 'exercise',
       lastActiveAt: typeof parsed.lastActiveAt === 'number' ? parsed.lastActiveAt : null,
+      activity,
+      theme: isThemeName(parsed.theme) ? parsed.theme : null,
     }
   } catch {
     return EMPTY
@@ -58,13 +66,11 @@ export function useProgress(total: number) {
     return () => window.clearTimeout(id)
   }, [progress, hydrated])
 
-  const setIndex = useCallback((index: number) => setProgress((p) => ({ ...p, index, view: 'exercise', lastActiveAt: Date.now() })), [])
+  const setIndex = useCallback((index: number) => setProgress((p) => ({ ...p, index, lastActiveAt: Date.now() })), [])
 
   const selectPath = useCallback((pathSlug: string, index: number) => {
-    setProgress((p) => ({ ...p, pathSlug, index, view: 'exercise', lastActiveAt: Date.now() }))
+    setProgress((p) => ({ ...p, pathSlug, index, lastActiveAt: Date.now() }))
   }, [])
-
-  const openSummary = useCallback(() => setProgress((p) => ({ ...p, view: 'summary' })), [])
 
   const setDraft = useCallback((id: string, code: string) => {
     setProgress((p) => {
@@ -85,11 +91,20 @@ export function useProgress(total: number) {
     })
   }, [])
 
-  const resetAll = useCallback(() => setProgress(EMPTY), [])
+  // The theme is a preference, not progress, so it survives a reset.
+  const resetAll = useCallback(() => setProgress((p) => ({ ...EMPTY, theme: p.theme })), [])
 
   const markSolved = useCallback((id: string, code: string) => {
-    setProgress((p) => (p.solved[id] === code ? p : { ...p, solved: { ...p.solved, [id]: code }, lastActiveAt: Date.now() }))
+    setProgress((p) => {
+      if (p.solved[id] === code) return p
+      // Only a first solve counts towards activity; re-solving after an edit does not.
+      const today = dayKey(new Date())
+      const activity = p.solved[id] === undefined ? { ...p.activity, [today]: (p.activity[today] ?? 0) + 1 } : p.activity
+      return { ...p, solved: { ...p.solved, [id]: code }, activity, lastActiveAt: Date.now() }
+    })
   }, [])
+
+  const setTheme = useCallback((theme: ThemeName) => setProgress((p) => ({ ...p, theme })), [])
 
   const isSolved = useCallback(
     (id: string, code: string) => {
@@ -99,5 +114,5 @@ export function useProgress(total: number) {
     [progress.solved],
   )
 
-  return { ...progress, hydrated, selectPath, setIndex, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved }
+  return { ...progress, hydrated, selectPath, setIndex, setDraft, resetDraft, resetAll, markSolved, setTheme, isSolved }
 }

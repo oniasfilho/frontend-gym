@@ -1,6 +1,6 @@
 import { describeInputs, type Param } from '@/lib/shape'
 
-export type PathSlug = 'for-of' | 'map' | 'filter' | 'find' | 'some' | 'every' | 'reduce' | 'flatmap' | 'sort' | 'destructuring' | 'spread-rest' | 'set' | 'map-collection' | 'object-entries' | 'object-from-entries' | 'optional-chaining' | 'nullish-coalescing' | 'mixed'
+export type PathSlug = 'for-of' | 'map' | 'filter' | 'find' | 'some' | 'every' | 'reduce' | 'flatmap' | 'sort' | 'string-parts' | 'string-normalization' | 'string-matching' | 'array-position' | 'array-extraction' | 'destructuring' | 'spread-rest' | 'set' | 'map-collection' | 'object-entries' | 'object-from-entries' | 'optional-chaining' | 'nullish-coalescing' | 'mixed'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type Exercise = {
   id: string

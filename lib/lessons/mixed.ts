@@ -31,7 +31,7 @@ export const mixedPracticeLessons: Exercise[] = [
     difficulty: 'easy',
     path: 'mixed',
     concepts: ['map', 'split', 'join', 'toUpperCase'],
-    prompt: 'Turn each snake_case username into an uppercase display name with words separated by single spaces, e.g. "ada_lovelace" → "ADA LOVELACE". The extra input is unused.',
+    prompt: 'Turn each snake_case username into an uppercase display name with words separated by single spaces, e.g. "ada_lovelace" → "ADA LOVELACE".',
     approach: 'Split each username on "_", join the parts with spaces, then uppercase the result.',
     solution: `return usernames.map((username) => username.split('_').join(' ').toUpperCase())`,
     labels: { A: 'usernames', B: 'extra' },
@@ -101,7 +101,7 @@ export const mixedPracticeLessons: Exercise[] = [
     difficulty: 'easy',
     path: 'mixed',
     concepts: ['flatmap', 'map', 'set', 'spread-rest', 'sort', 'toLowerCase'],
-    prompt: 'Return every tag used across all articles, lowercased, without duplicates, sorted alphabetically. The extra input is unused.',
+    prompt: 'Return every tag used across all articles, lowercased, without duplicates, sorted alphabetically.',
     approach: 'Flatten all tags, lowercase them, let a Set drop duplicates, then spread it into an array and sort.',
     solution: `return [...new Set(articles.flatMap((article) => article.tags).map((tag) => tag.toLowerCase()))].sort()`,
     labels: { A: 'articles', B: 'extra' },
@@ -120,7 +120,7 @@ export const mixedPracticeLessons: Exercise[] = [
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['map-collection', 'flatmap', 'Array.from', 'sort'],
-    prompt: 'Count how many products use each tag. Return { tag, count }[] sorted by count descending, then by tag alphabetically. The extra input is unused.',
+    prompt: 'Count how many products use each tag. Return { tag, count }[] sorted by count descending, then by tag alphabetically.',
     approach: 'Tally tags in a Map, turn its entries into objects, then sort by count and break ties by name.',
     solution: `const counts = new Map<string, number>()
 for (const tag of products.flatMap((product) => product.tags)) {
@@ -150,7 +150,7 @@ return Array.from(counts, ([tag, count]) => ({ tag, count })).sort(
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['map-collection', 'Array.from', 'spread-rest'],
-    prompt: 'Combine cart rows with the same SKU into one row whose qty is the sum. Keep the price from the first row for that SKU, and keep SKUs in the order they first appear. The extra input is unused.',
+    prompt: 'Combine cart rows with the same SKU into one row whose qty is the sum. Keep the price from the first row for that SKU, and keep SKUs in the order they first appear.',
     approach: 'Use a Map keyed by SKU: add a copy of the row the first time, otherwise add to its qty. A Map keeps insertion order.',
     solution: `const bySku = new Map<string, CartItem>()
 for (const line of cart) {
@@ -184,7 +184,7 @@ return Array.from(bySku.values())`,
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['map-collection', 'object-from-entries', 'toLowerCase'],
-    prompt: 'Build a lookup where the key is the lowercased email and the value is the whole user. When two users share an email, the later one wins. Return it as a plain object. The extra input is unused.',
+    prompt: 'Build a lookup where the key is the lowercased email and the value is the whole user. When two users share an email, the later one wins. Return it as a plain object.',
     approach: 'Set each user into a Map under its lowercased email (later sets overwrite), then convert the Map to an object.',
     solution: `const byEmail = new Map<string, User>()
 for (const user of users) byEmail.set(user.email.toLowerCase(), user)
@@ -244,7 +244,7 @@ return { lines, total: lines.reduce((sum, line) => sum + line.subtotal, 0) }`,
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['set', 'for-of', 'spread-rest', 'sort'],
-    prompt: 'Process login and logout events in order and return the ids of users who are still logged in, sorted alphabetically. Logging in twice counts once; logging out a user who is not logged in does nothing. The extra input is unused.',
+    prompt: 'Process login and logout events in order and return the ids of users who are still logged in, sorted alphabetically. Logging in twice counts once; logging out a user who is not logged in does nothing.',
     approach: 'Keep a Set of active users: add on login, delete on logout, then spread and sort it.',
     solution: `const active = new Set<string>()
 for (const event of events) {
@@ -312,7 +312,7 @@ return [...granted].sort()`,
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['set', 'filter', 'toLowerCase'],
-    prompt: 'Keep only the first customer for each email address, comparing emails case-insensitively. Keep the original order. The extra input is unused.',
+    prompt: 'Keep only the first customer for each email address, comparing emails case-insensitively. Keep the original order.',
     approach: 'Remember lowercased emails in a Set; keep a customer only when its email has not been seen yet.',
     solution: `const seen = new Set<string>()
 return customers.filter((customer) => {
@@ -346,7 +346,7 @@ return customers.filter((customer) => {
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['map-collection', 'object-from-entries', 'split', 'pop', 'toLowerCase'],
-    prompt: 'Count files by extension (the text after the last ".", lowercased) and return an object such as { ts: 3, json: 2 }. Ignore files without a ".". The extra input is unused.',
+    prompt: 'Count files by extension (the text after the last ".", lowercased) and return an object such as { ts: 3, json: 2 }. Ignore files without a ".".',
     approach: 'Skip names without a dot, take the last split segment as the extension, tally it in a Map, then convert the Map to an object.',
     solution: `const counts = new Map<string, number>()
 for (const name of files) {
@@ -416,7 +416,7 @@ return Array.from(counts, ([word, count]) => ({ word, count }))
     difficulty: 'medium',
     path: 'mixed',
     concepts: ['object-entries', 'filter', 'map', 'destructuring'],
-    prompt: 'Convert a flags object such as { darkMode: true, beta: false } into { enabled: [...], disabled: [...] } listing flag names in their original order. The extra input is unused.',
+    prompt: 'Convert a flags object such as { darkMode: true, beta: false } into { enabled: [...], disabled: [...] } listing flag names in their original order.',
     approach: 'Read the flags as entries, then filter by value and map each pair to its name, once for each list.',
     solution: `const entries = Object.entries(flags)
 return {

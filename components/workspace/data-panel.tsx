@@ -1,23 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy, Pencil, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { describeValue, formatValue } from '@/lib/format-value'
 import { cn } from '@/lib/utils'
-import { JsonView } from './json-view'
 
-function describe(value: unknown) {
-  if (Array.isArray(value)) return `array · ${value.length}`
-  if (value && typeof value === 'object') return `object · ${Object.keys(value).length} keys`
-  return typeof value
-}
+const BODY = 'm-0 rounded-lg px-3.5 py-3 font-mono text-[13px] leading-[1.6] whitespace-pre-wrap break-words'
 
-export function DataPanel({
-  letter,
+export function ValueBlock({
   label,
   value,
-  emphasis = false,
-  className,
+  expected = false,
   editable = false,
   dirty = false,
   notice,
@@ -25,11 +18,9 @@ export function DataPanel({
   onRestore,
   onHide,
 }: {
-  letter: string
   label: string
   value: unknown
-  emphasis?: boolean
-  className?: string
+  expected?: boolean
   editable?: boolean
   dirty?: boolean
   notice?: string | null
@@ -65,73 +56,62 @@ export function DataPanel({
   }
 
   return (
-    <section
-      aria-label={`${letter}: ${label}`}
-      className={cn(
-        'flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card',
-        emphasis && 'border-foreground/20',
-        className,
-      )}
-    >
-      <header className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
-        <span
-          className={cn(
-            'flex size-5 items-center justify-center rounded font-mono text-xs font-semibold',
-            emphasis ? 'bg-foreground text-background' : 'bg-muted text-foreground',
-          )}
-        >
-          {letter}
-        </span>
-        <span className="font-mono text-xs text-foreground">{label}</span>
-        <span className="truncate font-mono text-xs text-muted-foreground">{error ?? (notice ? 'unavailable' : describe(value))}</span>
-        <div className="ml-auto flex items-center gap-1">
+    <section aria-label={label} className="reveal flex flex-col gap-1.5">
+      <div className="flex min-h-6 items-center gap-2">
+        <span className={cn('font-mono text-xs font-medium', expected && 'text-accent-300')}>{label}</span>
+        <span className="truncate text-[11px] text-neutral-500">{error ?? (notice ? 'unavailable' : describeValue(value))}</span>
+        <div className="ml-auto flex items-center gap-0.5">
           {dirty && onRestore && (
-            <Button variant="ghost" size="xs" className="text-muted-foreground" onClick={onRestore}>
-              <RotateCcw data-icon="inline-start" />
-              Sample
+            <Button
+              variant="quiet"
+              size="xs"
+              className="reveal-item"
+              data-keep
+              onClick={() => {
+                setEditing(false)
+                onRestore()
+              }}
+            >
+              Restore sample
             </Button>
           )}
           {editable && (
-            <Button
-              variant="ghost"
-              size="xs"
-              className="text-muted-foreground"
-              onClick={() => (editing ? setEditing(false) : startEditing())}
-            >
-              <Pencil data-icon="inline-start" />
+            <Button variant="quiet" size="xs" className="reveal-item" data-keep={editing || undefined} onClick={() => (editing ? setEditing(false) : startEditing())}>
               {editing ? 'Done' : 'Edit'}
             </Button>
           )}
+          {!editing && !notice && (
+            <Button variant="quiet" size="xs" className="reveal-item" onClick={copy} aria-label={`Copy ${label} as JSON`}>
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+          )}
           {onHide && (
-            <Button variant="ghost" size="xs" className="text-muted-foreground" onClick={onHide}>
+            <Button variant="quiet" size="xs" className="reveal-item" onClick={onHide}>
               Hide
             </Button>
           )}
-          {!editing && !notice && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground"
-              onClick={copy}
-              aria-label={`Copy ${letter} as JSON`}
-            >
-              {copied ? <Check /> : <Copy />}
-            </Button>
-          )}
         </div>
-      </header>
+      </div>
       {editing ? (
         <textarea
           value={text}
           onChange={(event) => updateText(event.target.value)}
           spellCheck={false}
-          aria-label={`Edit ${letter} as JSON`}
-          className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[13px] leading-5 outline-none"
+          autoFocus
+          rows={Math.min(Math.max(text.split('\n').length, 3), 18)}
+          aria-label={`Edit ${label} as JSON`}
+          className={cn(BODY, 'resize-y bg-surface text-neutral-200 caret-accent shadow-[inset_0_0_0_1px_var(--color-neutral-800)] focus-visible:shadow-[inset_0_0_0_1px_var(--color-accent)] focus-visible:outline-none')}
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto p-3">
-          {notice ? <p className="text-sm text-pretty text-destructive">{notice}</p> : <JsonView value={value} />}
-        </div>
+        <pre
+          className={cn(
+            BODY,
+            expected ? 'bg-accent-900 text-accent-100 shadow-[inset_0_0_0_1px_var(--color-accent-800)]' : 'bg-surface text-neutral-200',
+            notice && 'font-sans text-sm text-neutral-300',
+          )}
+        >
+          {notice ?? formatValue(value)}
+        </pre>
       )}
     </section>
   )

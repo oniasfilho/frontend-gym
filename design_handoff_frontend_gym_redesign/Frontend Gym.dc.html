@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-63bbf970-ea00-4b25-b7c1-8f0f4731ac7c/styles.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="_ds/nocturne-63bbf970-ea00-4b25-b7c1-8f0f4731ac7c/_ds_bundle.js"></script>
+<style>html,body{margin:0;height:100%;background:var(--color-bg)}a{color:var(--color-accent)}a:hover{color:var(--color-accent-300)}textarea{caret-color:var(--color-accent)}textarea::selection{background:color-mix(in srgb,var(--color-accent) 35%,transparent)}</style>
+</helmet>
+<div style="{{ themeStyle }}">
+<div style="min-height:100vh;background:radial-gradient(1200px 600px at 0% -10%, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div ref="{{ stageRef }}" data-screen-label="Home" style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;gap:16px;padding:14px 24px">
+    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;font-weight:500;letter-spacing:-0.01em">frontend<span style="color:var(--color-accent)">.</span>gym</span>
+    <span style="font-size:12px;color:var(--color-neutral-500)">Data Transformation</span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <div style="position:relative">
+        <button onClick="{{ toggleTheme }}" title="Theme" aria-label="Change theme" aria-expanded="{{ themeOpen }}" style="display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:none;cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><span style="width:10px;height:10px;border-radius:50%;background:{{ themeDot }};box-shadow:0 0 0 1px var(--color-neutral-700)"></span></button>
+        <sc-if value="{{ themeOpen }}" hint-placeholder-val="{{ false }}">
+          <div onMouseDown="{{ closeTheme }}" style="position:fixed;inset:0;z-index:40"></div>
+          <div role="menu" aria-label="Theme" style="position:absolute;right:0;top:36px;z-index:41;width:190px;padding:6px;border-radius:10px;background:var(--color-surface);box-shadow:var(--shadow-md);display:flex;flex-direction:column;gap:2px">
+            <span style="padding:4px 8px 6px;font-size:11px;color:var(--color-neutral-400)">Theme</span>
+            <sc-for list="{{ themes }}" as="t" hint-placeholder-count="5">
+              <button role="menuitemradio" onClick="{{ t.pick }}" style="display:flex;align-items:center;gap:10px;padding:6px 8px;border:0;border-radius:6px;background:none;color:var(--color-text);cursor:pointer;font:13px var(--font-body);font-weight:{{ t.weight }};text-align:left" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">
+                <span style="display:flex;width:26px;height:14px;border-radius:4px;overflow:hidden;box-shadow:{{ t.ring }}"><span style="flex:1;background:{{ t.bg }}"></span><span style="flex:1;background:{{ t.ac }}"></span></span>{{ t.name }}
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <button class="btn btn-secondary" onClick="{{ openPalette }}" style="font-size:12px;padding:5px 9px;gap:8px">Jump to… <span style="font:11px 'JetBrains Mono',monospace;color:var(--color-neutral-400)">{{ kb.k }}</span></button>
+    </div>
+  </header>
+  <main style="width:100%;max-width:1040px;padding:56px 24px 64px;display:flex;flex-direction:column;gap:56px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:40px 56px;align-items:start">
+    <section style="display:flex;flex-direction:column;gap:18px;min-width:0">
+      <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent)">{{ resumeKicker }}</span>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h1 style="margin:0;font-size:42px;text-wrap:balance">{{ resume.title }}</h1>
+        <div style="display:flex;gap:10px;align-items:center;font-size:13px;color:var(--color-neutral-400)">
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--color-text)">{{ resume.pathName }}</span>
+          <span style="white-space:nowrap">Exercise {{ resume.pos }} of {{ resume.total }}</span>
+          <sc-if value="{{ resume.hasAgo }}" hint-placeholder-val="{{ false }}"><span style="color:var(--color-neutral-500);white-space:nowrap">· {{ resume.ago }}</span></sc-if>
+        </div>
+      </div>
+      <p style="margin:0;font-size:15px;line-height:1.6;color:var(--color-neutral-300);text-wrap:pretty;max-width:560px">{{ resume.prompt }}</p>
+      <div style="display:flex;gap:4px;max-width:360px">
+        <sc-for list="{{ resume.dots }}" as="d" hint-placeholder-count="6">
+          <span style="flex:1;height:4px;border-radius:2px;background:{{ d.bg }}"></span>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:6px">
+        <button class="btn btn-primary" onClick="{{ resumeGo }}" style="font-size:15px;padding:10px 18px;gap:10px">Continue <span style="font:12px 'JetBrains Mono',monospace;opacity:0.8">↵</span></button>
+        <span style="font-size:12px;color:var(--color-neutral-500)">Press Enter from anywhere on this page</span>
+      </div>
+    </section>
+
+    <section aria-label="Your progress" class="card" style="padding:18px 20px 20px;gap:18px;box-shadow:var(--shadow-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <h2 style="margin:0;font-size:16px">Your progress</h2>
+        <sc-if value="{{ isSample }}" hint-placeholder-val="{{ false }}"><span class="tag tag-neutral" style="font-size:10px;padding:1px 7px">Sample history</span></sc-if>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:42px;font-weight:500;line-height:1;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ totalSolved }}</span><span style="font-size:13px;color:var(--color-neutral-400)">of {{ totalCount }} exercises solved</span></div>
+        <div style="height:4px;border-radius:2px;background:var(--color-neutral-800);overflow:hidden"><div style="height:100%;width:{{ solvedPct }}%;background:var(--color-accent);border-radius:2px"></div></div>
+      </div>
+      <dl style="margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+        <div style="display:flex;flex-direction:column;gap:2px"><dt style="font-size:11px;color:var(--color-neutral-400)">Streak</dt><dd style="margin:0;font-size:20px;font-weight:500;font-variant-numeric:tabular-nums">{{ prog.streak }}<span style="font-size:12px;font-weight:400;color:var(--color-neutral-400)"> days</span></dd></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><dt style="font-size:11px;color:var(--color-neutral-400)">Last 7 days</dt><dd style="margin:0;font-size:20px;font-weight:500;font-variant-numeric:tabular-nums">{{ prog.week }}<span style="font-size:12px;font-weight:400;color:var(--color-neutral-400)"> solved</span></dd></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><dt style="font-size:11px;color:var(--color-neutral-400)">Paths done</dt><dd style="margin:0;font-size:20px;font-weight:500;font-variant-numeric:tabular-nums">{{ pathsDone }}<span style="font-size:12px;font-weight:400;color:var(--color-neutral-400)"> / {{ pathsOpen }}</span></dd></div>
+      </dl>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:grid;grid-template-rows:repeat(7,11px);grid-auto-flow:column;grid-auto-columns:11px;gap:3px">
+          <sc-for list="{{ prog.cells }}" as="c" hint-placeholder-count="105"><span title="{{ c.title }}" style="border-radius:2px;background:{{ c.bg }}"></span></sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--color-neutral-500)">
+          <span style="white-space:nowrap">Last 15 weeks · {{ prog.activeDays }} active days</span>
+          <span style="margin-left:auto">Less</span>
+          <sc-for list="{{ prog.levels }}" as="l" hint-placeholder-count="5"><span style="width:9px;height:9px;border-radius:2px;background:{{ l.bg }}"></span></sc-for>
+          <span>More</span>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <section style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h2 style="margin:0;font-size:16px">Paths</h2>
+        <span style="font-size:12px;color:var(--color-neutral-500)">In suggested order. Open any path; it starts at your first unsolved exercise.</span>
+      </div>
+      <ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 24px">
+        <sc-for list="{{ pathRows }}" as="p" hint-placeholder-count="18">
+          <li style="display:flex">
+            <button onClick="{{ p.open }}" disabled="{{ p.disabled }}" style="flex:1;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:12px 10px;margin:0 -10px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit;opacity:{{ p.opacity }}" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)" style-active="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <span style="font:11px 'JetBrains Mono',monospace;color:var(--color-neutral-500);font-variant-numeric:tabular-nums">{{ p.num }}</span>
+              <span style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px">{{ p.name }}</span>
+                <sc-if value="{{ p.upNext }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent" style="font-size:10px;padding:1px 6px">Up next</span></sc-if>
+                <sc-if value="{{ p.done }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--color-accent)">✓</span></sc-if>
+              </span>
+              <span style="font:11px 'JetBrains Mono',monospace;color:var(--color-neutral-400);font-variant-numeric:tabular-nums">{{ p.count }}</span>
+              <span></span>
+              <span style="font-size:12px;color:var(--color-neutral-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.desc }}</span>
+              <span style="width:44px;height:3px;border-radius:2px;background:var(--color-neutral-800);overflow:hidden"><span style="display:block;height:100%;width:{{ p.pct }}%;background:var(--color-accent)"></span></span>
+            </button>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+  </main>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPractice }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Practice" style="height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto">
+  <header style="display:flex;align-items:center;gap:14px;padding:10px 16px;background:linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px">
+    <button onClick="{{ goHome }}" title="Home (Esc)" style="background:none;border:0;padding:4px 6px;margin-left:-6px;border-radius:6px;color:var(--color-text);cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;font-weight:500" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">frontend<span style="color:var(--color-accent)">.</span>gym</button>
+    <button onClick="{{ openPalette }}" title="Switch path or exercise ({{ kb.k }})" style="display:flex;align-items:center;gap:8px;background:none;border:0;padding:4px 8px;border-radius:6px;color:var(--color-neutral-300);cursor:pointer;font:13px var(--font-body)" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent);color:var(--color-text)">
+      <span style="font-family:'JetBrains Mono',monospace;color:var(--color-text)">{{ pathName }}</span>
+      <span style="color:var(--color-neutral-500);font-variant-numeric:tabular-nums">{{ posLabel }}</span>
+      <span style="font-size:10px;color:var(--color-neutral-500)">▾</span>
+    </button>
+    <nav aria-label="Exercises in this path" style="display:flex;flex:1;max-width:420px;gap:2px">
+      <sc-for list="{{ dots }}" as="d" hint-placeholder-count="10">
+        <button onClick="{{ d.go }}" title="{{ d.title }}" aria-label="{{ d.title }}" style="flex:1;max-width:40px;padding:10px 1px;background:none;border:0;cursor:pointer">
+          <span style="display:block;height:4px;border-radius:2px;background:{{ d.bg }};box-shadow:{{ d.ring }}"></span>
+        </button>
+      </sc-for>
+    </nav>
+    <button class="btn btn-secondary" onClick="{{ openPalette }}" style="margin-left:auto;font-size:12px;padding:5px 9px;gap:8px">Jump <span style="font:11px 'JetBrains Mono',monospace;color:var(--color-neutral-400)">{{ kb.k }}</span></button>
+  </header>
+
+  <main ref="{{ stageRef }}" style="min-height:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:16px;overflow:auto">
+    <section aria-label="Exercise" style="min-height:0;display:flex;flex-direction:column;gap:18px;padding:8px 8px 8px 4px;overflow:auto">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <h1 style="margin:0;font-size:25px">{{ ex.title }}</h1>
+          <sc-if value="{{ solvedNow }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent">Solved</span></sc-if>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:var(--color-neutral-200);text-wrap:pretty">{{ ex.prompt }}</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font:500 12px 'JetBrains Mono',monospace">input</span><span style="font-size:11px;color:var(--color-neutral-500)">{{ inputShape }}</span></div>
+        <pre style="margin:0;padding:12px 14px;border-radius:8px;background:var(--color-surface);font:13px/1.6 'JetBrains Mono',monospace;white-space:pre-wrap;color:var(--color-neutral-200)">{{ inputJson }}</pre>
+      </div>
+      <sc-if value="{{ hasExtra }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font:500 12px 'JetBrains Mono',monospace">extra</span><span style="font-size:11px;color:var(--color-neutral-500)">{{ extraShape }}</span></div>
+          <pre style="margin:0;padding:12px 14px;border-radius:8px;background:var(--color-surface);font:13px/1.6 'JetBrains Mono',monospace;white-space:pre-wrap;color:var(--color-neutral-200)">{{ extraJson }}</pre>
+        </div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font:500 12px 'JetBrains Mono',monospace;color:var(--color-accent-300)">expected</span><span style="font-size:11px;color:var(--color-neutral-500)">{{ expectedShape }}</span></div>
+        <pre style="margin:0;padding:12px 14px;border-radius:8px;background:var(--color-accent-900);box-shadow:inset 0 0 0 1px var(--color-accent-800);font:13px/1.6 'JetBrains Mono',monospace;white-space:pre-wrap;color:var(--color-accent-100)">{{ expectedJson }}</pre>
+      </div>
+    </section>
+
+    <section aria-label="Solution" style="min-height:420px;display:flex;flex-direction:column;gap:12px">
+      <div style="flex:1;min-height:200px;display:flex;flex-direction:column;border-radius:10px;background:var(--color-surface);box-shadow:{{ editorShadow }};transition:box-shadow 300ms ease;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;font:12px 'JetBrains Mono',monospace;color:var(--color-neutral-400)">
+          <span style="color:var(--color-text)">solve</span><span>{{ signature }}</span>
+          <span style="margin-left:auto;font-family:var(--font-body);font-size:11px;color:var(--color-neutral-500);white-space:nowrap">Click a line number to watch it</span>
+          <button onClick="{{ resetCode }}" disabled="{{ isPristine }}" class="btn btn-ghost" style="font-size:12px;padding:2px 6px;color:var(--color-neutral-400)">Reset</button>
+        </div>
+        <div style="flex:1;min-height:0;overflow:auto;display:flex;background:var(--color-bg);margin:0 4px 4px;border-radius:7px">
+          <div style="flex:none;padding:14px 0;display:flex;flex-direction:column;align-self:flex-start">
+            <sc-for list="{{ lines }}" as="ln" hint-placeholder-count="4">
+              <button onClick="{{ ln.toggle }}" title="{{ ln.tip }}" aria-pressed="{{ ln.watched }}" style="height:21px;display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:0 10px 0 10px;border:0;background:none;cursor:pointer;font:13.5px/21px 'JetBrains Mono',monospace;color:{{ ln.numColor }}" style-hover="color:var(--color-accent-300)"><span style="width:7px;height:7px;border-radius:50%;background:{{ ln.dot }};box-shadow:{{ ln.dotRing }}"></span><span style="min-width:1.5ch;text-align:right">{{ ln.n }}</span></button>
+            </sc-for>
+          </div>
+          <div style="position:relative;flex:1;min-width:0">
+            <div aria-hidden="true" style="position:absolute;inset:0;padding:14px 0 14px 0;pointer-events:none;font:13.5px/21px 'JetBrains Mono',monospace;overflow:hidden">
+              <sc-for list="{{ lines }}" as="ln" hint-placeholder-count="4">
+                <div style="height:21px;white-space:pre;overflow:hidden;text-overflow:ellipsis;padding:0 14px 0 4px;background:{{ ln.bg }}"><span><sc-for list="{{ ln.toks }}" as="tk" hint-placeholder-count="0"><span style="color:{{ tk.c }};font-style:{{ tk.fs }}">{{ tk.t }}</span></sc-for></span><span style="margin-left:3ch;font-size:12px;color:{{ ln.ghostColor }}">{{ ln.ghost }}</span></div>
+              </sc-for>
+            </div>
+            <textarea ref="{{ edRef }}" value="{{ code }}" onChange="{{ onCode }}" onKeyDown="{{ onEdKey }}" spellcheck="false" aria-label="Your solution" style="position:relative;z-index:1;display:block;width:100%;height:{{ edH }}px;min-height:100%;resize:none;border:0;outline:0;padding:14px 14px 14px 4px;background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:var(--color-accent-300);font:13.5px/21px 'JetBrains Mono',monospace;tab-size:2;white-space:pre;overflow:hidden"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div ref="{{ statusRef }}" role="status" aria-live="polite" style="flex:none;height:38%;min-height:170px;border-radius:10px;background:var(--color-surface);display:flex;flex-direction:column;overflow:hidden">
+        <div role="tablist" aria-label="Output" style="flex:none;display:flex;align-items:center;gap:2px;padding:6px 8px 0;background:linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px">
+          <button role="tab" aria-selected="{{ onResult }}" onClick="{{ tabResult }}" style="display:flex;align-items:center;gap:7px;padding:7px 10px;border:0;background:none;cursor:pointer;font:500 12px var(--font-body);color:{{ tabResultColor }};box-shadow:{{ tabResultLine }}" style-hover="color:var(--color-text)"><span style="width:6px;height:6px;border-radius:50%;background:{{ resultDot }}"></span>Result</button>
+          <button role="tab" aria-selected="{{ onPeek }}" onClick="{{ tabPeek }}" style="display:flex;align-items:center;gap:7px;padding:7px 10px;border:0;background:none;cursor:pointer;font:500 12px var(--font-body);color:{{ tabPeekColor }};box-shadow:{{ tabPeekLine }}" style-hover="color:var(--color-text)">Peek<sc-if value="{{ hasPeeks }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent" style="font-size:10px;padding:0 6px;font-variant-numeric:tabular-nums">{{ peekCount }}</span></sc-if></button>
+          <span style="margin-left:auto;padding-right:6px;font:11px 'JetBrains Mono',monospace;color:var(--color-neutral-500);white-space:nowrap">{{ kb.dot }} watch line</span>
+        </div>
+        <div style="flex:1;min-height:0;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <sc-if value="{{ onResult }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ st.idle }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--color-neutral-400)"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-600)"></span>{{ idleText }}</div>
+        </sc-if>
+        <sc-if value="{{ st.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--color-neutral-300)"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-500)"></span>solve() returns nothing yet. Add a <code style="font-family:'JetBrains Mono',monospace;color:var(--color-text)">return</code>.</div>
+        </sc-if>
+        <sc-if value="{{ st.error }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-300)"></span>Doesn't run yet</div>
+            <code style="font:12.5px/1.5 'JetBrains Mono',monospace;color:var(--color-neutral-300);white-space:pre-wrap">{{ st.msg }}</code>
+          </div>
+        </sc-if>
+        <sc-if value="{{ st.wrong }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-300)"></span><span style="font-weight:500">Close, not yet</span><span style="color:var(--color-neutral-400)">{{ st.msg }}</span></div>
+            <div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font:12.5px/1.6 'JetBrains Mono',monospace">
+              <span style="color:var(--color-neutral-500)">yours</span><span style="white-space:pre-wrap;color:var(--color-text)">{{ st.yours }}</span>
+              <span style="color:var(--color-accent-300)">wanted</span><span style="white-space:pre-wrap;color:var(--color-accent-200)">{{ st.wanted }}</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ st.ok }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><span style="display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--color-accent-800);color:var(--color-accent-200);font-size:12px">✓</span><span style="font-size:15px;font-weight:500;color:var(--color-accent-200)">{{ okTitle }}</span><span style="margin-left:auto;font-size:12px;color:var(--color-neutral-400)">{{ okHint }}</span></div>
+            <p style="margin:0;font-size:13px;line-height:1.55;color:var(--color-neutral-300);text-wrap:pretty">{{ ex.approach }}</p>
+            <details style="font-size:12px;color:var(--color-neutral-400)"><summary style="cursor:pointer">Compare with the reference</summary><pre style="margin:8px 0 0;font:12.5px/1.6 'JetBrains Mono',monospace;color:var(--color-neutral-200);white-space:pre-wrap">{{ ex.sol }}</pre></details>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isStale }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--color-neutral-500)">Edited since last check · {{ kb.enter }} to run</span></sc-if>
+        </sc-if>
+        <sc-if value="{{ onPeek }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ peekOk }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ tabResult }}" style="align-self:flex-start;display:flex;align-items:center;gap:8px;padding:5px 10px;border:0;border-radius:8px;background:var(--color-accent-900);box-shadow:inset 0 0 0 1px var(--color-accent-800);color:var(--color-accent-200);cursor:pointer;font:500 12px var(--font-body)" style-hover="background:var(--color-accent-800)">✓ Correct · see result</button>
+          </sc-if>
+          <sc-if value="{{ peekEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.55;color:var(--color-neutral-300);max-width:520px">
+              <span>See what your code is doing while you type. Click a line number to watch that line, or wrap any value in <code style="font-family:'JetBrains Mono',monospace;color:var(--color-text)">peek()</code>. Values show next to the code and here, one row per pass through a loop.</span>
+              <code style="align-self:flex-start;padding:4px 8px;border-radius:6px;background:var(--color-bg);font:12px 'JetBrains Mono',monospace;color:var(--color-neutral-200)">{{ peekSample }}</code>
+            </div>
+          </sc-if>
+          <sc-if value="{{ peekDim }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--color-neutral-500)">Showing the last run that compiled</span></sc-if>
+          <div style="display:flex;flex-direction:column;gap:14px;opacity:{{ peekOpacity }}">
+            <sc-for list="{{ peekGroups }}" as="g" hint-placeholder-count="0">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;gap:10px;align-items:baseline;font:12px 'JetBrains Mono',monospace"><span style="color:var(--color-neutral-500)">line {{ g.n }}</span><span style="color:var(--color-accent-300)">{{ g.label }}</span><span style="color:var(--color-neutral-500)">{{ g.meta }}</span></div>
+                <div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;font:12.5px/1.6 'JetBrains Mono',monospace">
+                  <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="0"><span style="color:var(--color-neutral-600);font-variant-numeric:tabular-nums">{{ r.i }}</span><span style="white-space:pre-wrap;color:var(--color-neutral-100)">{{ r.text }}</span></sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat top / 100% 1px">
+    <sc-if value="{{ showHints }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--color-neutral-500);white-space:nowrap">
+        <span><span style="font-family:'JetBrains Mono',monospace;color:var(--color-neutral-400)">{{ kb.enter }}</span> {{ primaryVerb }}</span>
+        <span><span style="font-family:'JetBrains Mono',monospace;color:var(--color-neutral-400)">{{ kb.dot }}</span> watch line</span>
+        <span><span style="font-family:'JetBrains Mono',monospace;color:var(--color-neutral-400)">{{ kb.alt }}</span> prev / skip</span>
+        <span><span style="font-family:'JetBrains Mono',monospace;color:var(--color-neutral-400)">esc</span> home</span>
+      </div>
+    </sc-if>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button class="btn btn-secondary" onClick="{{ prev }}" disabled="{{ isFirst }}" aria-label="Previous exercise">←</button>
+      <button class="btn btn-secondary" onClick="{{ skip }}">Skip</button>
+      <button ref="{{ primaryRef }}" class="btn btn-primary" onClick="{{ primary }}" style="min-width:128px;gap:10px;background:{{ primaryBg }}">{{ primaryLabel }} <span style="font:11px 'JetBrains Mono',monospace;opacity:0.75">{{ kb.enter }}</span></button>
+    </div>
+  </footer>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+<div ref="{{ stageRef }}" data-screen-label="Path complete" style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;padding:14px 24px">
+    <button onClick="{{ goHome }}" style="background:none;border:0;padding:0;color:var(--color-text);cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;font-weight:500">frontend<span style="color:var(--color-accent)">.</span>gym</button>
+  </header>
+  <main style="max-width:640px;padding:12vh 24px 64px;display:flex;flex-direction:column;gap:22px">
+    <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent)">Path complete</span>
+    <h1 style="margin:0;font-family:'JetBrains Mono',monospace;font-size:42px;font-weight:500;letter-spacing:-0.02em">{{ pathName }}</h1>
+    <p style="margin:0;font-size:15px;color:var(--color-neutral-300)">{{ doneSummary }}</p>
+    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px">
+      <sc-for list="{{ doneList }}" as="t" hint-placeholder-count="6">
+        <li class="tag {{ t.cls }}">{{ t.mark }} {{ t.title }}</li>
+      </sc-for>
+    </ul>
+    <sc-if value="{{ hasNextPath }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:18px">
+        <span style="font-size:12px;color:var(--color-neutral-400)">Up next</span>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:20px">{{ nextPath.name }}</span><span style="font-size:14px;color:var(--color-neutral-300)">{{ nextPath.desc }}</span></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="btn btn-primary" onClick="{{ startNextPath }}" style="font-size:15px;padding:10px 18px;gap:10px">Start {{ nextPath.name }} <span style="font:12px 'JetBrains Mono',monospace;opacity:0.8">↵</span></button>
+          <button class="btn btn-secondary" onClick="{{ goHome }}" style="font-size:15px;padding:10px 16px">Home</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ noNextPath }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:8px"><button class="btn btn-primary" onClick="{{ goHome }}" style="font-size:15px;padding:10px 18px">Back home ↵</button></div>
+    </sc-if>
+  </main>
+</div>
+</sc-if>
+
+<sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+<div onMouseDown="{{ backdropDown }}" style="position:fixed;inset:0;z-index:50;display:flex;justify-content:center;align-items:flex-start;padding:14vh 16px 16px;background:color-mix(in srgb, var(--color-neutral-900) 55%, transparent);backdrop-filter:blur(3px)">
+  <div ref="{{ palRef }}" role="dialog" aria-label="Jump to" style="width:min(560px,100%);border-radius:14px;background:var(--color-surface);box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column">
+    <input ref="{{ palInput }}" value="{{ q }}" onChange="{{ onQ }}" onKeyDown="{{ onPalKey }}" placeholder="Type a path or exercise…" aria-label="Search" style="border:0;outline:0;background:transparent;color:var(--color-text);font:15px var(--font-body);padding:16px 18px;background:linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px">
+    <ul style="list-style:none;margin:0;padding:6px;max-height:380px;overflow:auto">
+      <sc-for list="{{ palItems }}" as="it" hint-placeholder-count="8">
+        <li>
+          <button onClick="{{ it.run }}" onMouseEnter="{{ it.hover }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:9px 12px;border:0;border-radius:8px;background:{{ it.bg }};color:var(--color-text);text-align:left;cursor:pointer;font:14px var(--font-body)">
+            <span style="width:14px;font-size:12px;color:var(--color-accent)">{{ it.mark }}</span>
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:{{ it.font }}">{{ it.label }}</span>
+            <span style="font-size:11px;color:var(--color-neutral-400);font-family:'JetBrains Mono',monospace">{{ it.sub }}</span>
+          </button>
+        </li>
+      </sc-for>
+      <sc-if value="{{ palEmpty }}" hint-placeholder-val="{{ false }}"><li style="padding:24px 12px;font-size:13px;color:var(--color-neutral-400)">Nothing matches “{{ q }}”.</li></sc-if>
+    </ul>
+    <div style="display:flex;gap:14px;padding:9px 16px;font-size:11px;color:var(--color-neutral-500);background:linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat top / 100% 1px"><span>↑↓ move</span><span>↵ open</span><span>esc close</span><span style="margin-left:auto">type “theme” to change colors</span></div>
+  </div>
+</div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;palette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Nocturne&quot;,&quot;Ember&quot;,&quot;Tide&quot;,&quot;Graphite&quot;,&quot;Mono&quot;],&quot;default&quot;:&quot;Nocturne&quot;,&quot;tsType&quot;:&quot;'Nocturne' | 'Ember' | 'Tide' | 'Graphite' | 'Mono'&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;autoCheck&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Practice&quot;},&quot;autoAdvance&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Practice&quot;},&quot;showHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Practice&quot;},&quot;sampleHistory&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Home&quot;}}">
+const KEY = 'fg-redesign:v1';
+const IS_MAC = /mac|iphone|ipad/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
+const K = IS_MAC ? { k: '⌘K', enter: '⌘↵', dot: '⌘.', alt: '⌥← ⌥→' } : { k: 'Ctrl K', enter: 'Ctrl ↵', dot: 'Ctrl .', alt: 'Alt ← Alt →' };
+const USERS = [{ id: 1, name: 'Ana', active: true, age: 24 }, { id: 2, name: 'Bruno', active: false, age: 17 }, { id: 3, name: 'Carla', active: true, age: 32 }];
+const PATHS = [
+  ['for-of', 'for...of', 'Fundamental explicit iteration.'], ['map', 'map', 'Transform every item in an array.'], ['filter', 'filter', 'Select items matching a condition.'],
+  ['find', 'find', 'Return the first matching item.'], ['some', 'some', 'Check whether any item matches.'], ['every', 'every', 'Check whether all items match.'],
+  ['reduce', 'reduce', 'Accumulate values into another structure.'], ['flatmap', 'flatMap', 'Transform and flatten results.'], ['sort', 'sort / toSorted', 'Order collections without surprises.'],
+  ['destructuring', 'destructuring', 'Extract values from structures.'], ['spread-rest', 'spread / rest', 'Copy, combine, and collect values.'], ['set', 'Set', 'Work with unique-value collections.'],
+  ['map-collection', 'Map', 'Work with key/value collections.'], ['object-entries', 'Object.entries', 'Convert objects into iterable entries.'], ['object-from-entries', 'Object.fromEntries', 'Build objects from entry pairs.'],
+  ['optional-chaining', 'optional chaining', 'Safely access nullable structures.'], ['nullish-coalescing', 'nullish coalescing', 'Fallback only for nullish values.'], ['mixed', 'Mixed Practice', 'Choose and combine previously learned concepts.'],
+].map(([slug, name, desc]) => ({ slug, name, desc }));
+const APPROACH = {
+  'for-of': 'Visit each value explicitly. Update a result inside the loop, then return it after the loop finishes.',
+  map: 'Each input item becomes exactly one output item. Return that item from the callback; the output length stays the same.',
+};
+const L = (path, id, title, prompt, A, B, ref, sol, diff) => ({ path, id, title, prompt, A, B, ref, sol, diff: diff || 'easy', approach: APPROACH[path] });
+const EX = {
+  'for-of': [
+    L('for-of', 'for-of-copy-values', 'Copy values', 'Use for...of to return a new array with the same numbers in the same order.', [2, 4, 6, 8], null, (a) => { const r = []; for (const v of a) r.push(v); return r }, 'const result = []\nfor (const value of input) {\n  result.push(value)\n}\nreturn result'),
+    L('for-of', 'for-of-double-numbers', 'Double numbers', 'Use for...of to return a new array with every number doubled.', [2, 4, 6], null, (a) => { const r = []; for (const v of a) r.push(v * 2); return r }, 'const result = []\nfor (const value of input) {\n  result.push(value * 2)\n}\nreturn result'),
+    L('for-of', 'for-of-extract-names', 'Extract user names', 'Use for...of to return the names in their original order.', [{ id: 1, name: 'Ana' }, { id: 2, name: 'Bruno' }], null, (a) => { const r = []; for (const u of a) r.push(u.name); return r }, 'const result = []\nfor (const user of input) {\n  result.push(user.name)\n}\nreturn result'),
+    L('for-of', 'for-of-count-active-users', 'Count active users', 'Use for...of to return how many users are active.', USERS, null, (a) => { let c = 0; for (const u of a) if (u.active) c += 1; return c }, 'let count = 0\nfor (const user of input) {\n  if (user.active) count += 1\n}\nreturn count'),
+    L('for-of', 'for-of-sum-prices', 'Sum prices', 'Use for...of to return the total price.', [{ name: 'Keyboard', price: 100 }, { name: 'Mouse', price: 50 }], null, (a) => { let t = 0; for (const p of a) t += p.price; return t }, 'let total = 0\nfor (const product of input) {\n  total += product.price\n}\nreturn total'),
+    L('for-of', 'for-of-maximum', 'Find maximum manually', 'Use for...of to return the largest value in this non-empty array. Do not use Math.max, reduce, or sorting.', [5, 18, 3, 41, 12], null, (a) => { let m = a[0]; for (const v of a) if (v > m) m = v; return m }, 'let maximum = input[0]\nfor (const value of input) {\n  if (value > maximum) maximum = value\n}\nreturn maximum', 'medium'),
+  ],
+  map: [
+    L('map', 'map-double-numbers', 'Double numbers', 'Use map to double every number. Return one number for each input number.', [1, 2, 3], null, (a) => a.map((v) => v * 2), 'return input.map((value) => value * 2)'),
+    L('map', 'map-celsius-fahrenheit', 'Celsius to Fahrenheit', 'Return each temperature in Fahrenheit: multiply Celsius by 9 / 5, then add 32.', [0, 10, 20], null, (a) => a.map((v) => v * 9 / 5 + 32), 'return input.map((value) => value * 9 / 5 + 32)'),
+    L('map', 'map-extract-names', 'Extract user names', 'Return one name for every user, in original order.', USERS, null, (a) => a.map((u) => u.name), 'return input.map((user) => user.name)'),
+    L('map', 'map-create-greetings', 'Create greetings', 'Return a greeting for each name, such as "Hello, Ana".', ['Ana', 'Bruno', 'Carla'], null, (a) => a.map((n) => `Hello, ${n}`), 'return input.map((name) => "Hello, " + name)'),
+    L('map', 'map-add-tax', 'Add tax to prices', 'Return each price including the tax rate in extra. For a rate of 0.1, multiply by 1.1. Round to two decimal places.', [100, 50, 20], 0.1, (a, x) => a.map((p) => Math.round(p * (1 + x) * 100) / 100), 'return input.map((price) => Math.round(price * (1 + extra) * 100) / 100)'),
+    L('map', 'map-simplify-products', 'Simplify product objects', 'Return one new object per product containing only id and name.', [{ id: 1, name: 'Keyboard', price: 100, stock: 3, internalCode: 'X' }, { id: 2, name: 'Mouse', price: 50, stock: 0, internalCode: 'Y' }, { id: 3, name: 'Cable', price: 20, stock: 5, internalCode: 'Z' }], null, (a) => a.map((p) => ({ id: p.id, name: p.name })), 'return input.map((product) => ({ id: product.id, name: product.name }))'),
+    L('map', 'map-add-available', 'Add an available field', 'Return { name, stock, available } for every product. available is true when stock is greater than zero. Write each property explicitly; do not use spread.', [{ name: 'Keyboard', stock: 3 }, { name: 'Mouse', stock: 0 }, { name: 'Cable', stock: 5 }], null, (a) => a.map((p) => ({ name: p.name, stock: p.stock, available: p.stock > 0 })), 'return input.map((product) => ({\n  name: product.name,\n  stock: product.stock,\n  available: product.stock > 0,\n}))'),
+    L('map', 'map-score-labels', 'Convert scores to labels', 'Return "pass" for scores of at least 60 and "fail" otherwise. Keep one label per score.', [80, 45, 72], null, (a) => a.map((s) => s >= 60 ? 'pass' : 'fail'), 'return input.map((score) => score >= 60 ? "pass" : "fail")', 'medium'),
+    L('map', 'map-numbered-names', 'Use the map index', 'Return numbered names starting at 1: "1. Ana", "2. Bruno", and so on.', ['Ana', 'Bruno', 'Carla'], null, (a) => a.map((n, i) => `${i + 1}. ${n}`), 'return input.map((name, index) => (index + 1) + ". " + name)', 'medium'),
+    L('map', 'map-line-totals', 'Build line summaries', 'Return { name, total, label } for every line. total is price times quantity; label is "bulk" for quantity of at least 3, otherwise "single".', [{ name: 'Pen', price: 2, quantity: 3 }, { name: 'Book', price: 10, quantity: 1 }, { name: 'Clip', price: 1, quantity: 5 }], null, (a) => a.map((it) => ({ name: it.name, total: it.price * it.quantity, label: it.quantity >= 3 ? 'bulk' : 'single' })), 'return input.map((item) => ({\n  name: item.name,\n  total: item.price * item.quantity,\n  label: item.quantity >= 3 ? "bulk" : "single",\n}))', 'medium'),
+  ],
+};
+const ALL = Object.values(EX).flat();
+const starter = (ex) => ex.B === null ? 'function solve(input) {\n  \n}\n' : 'function solve(input, extra) {\n  \n}\n';
+const clone = (v) => v === undefined ? v : JSON.parse(JSON.stringify(v));
+const isPrim = (v) => v === null || typeof v !== 'object';
+function fmt(v, ind = '') {
+  if (v === undefined) return 'undefined';
+  if (isPrim(v)) return JSON.stringify(v);
+  const next = ind + '  ';
+  if (Array.isArray(v)) {
+    if (!v.length) return '[]';
+    const flat = '[' + v.map((x) => fmt(x, next)).join(', ') + ']';
+    if (v.every(isPrim) || (flat.length < 64 && !flat.includes('\n'))) return flat;
+    return '[\n' + v.map((x) => next + fmt(x, next)).join(',\n') + '\n' + ind + ']';
+  }
+  const keys = Object.keys(v);
+  if (!keys.length) return '{}';
+  if (keys.every((k) => isPrim(v[k]))) return '{ ' + keys.map((k) => k + ': ' + JSON.stringify(v[k])).join(', ') + ' }';
+  return '{\n' + keys.map((k) => next + k + ': ' + fmt(v[k], next)).join(',\n') + '\n' + ind + '}';
+}
+function shape(v) {
+  if (Array.isArray(v)) return 'array · ' + v.length + (v.length === 1 ? ' item' : ' items');
+  if (v && typeof v === 'object') return 'object · ' + Object.keys(v).length + ' keys';
+  return v === null ? 'null' : typeof v;
+}
+const KW = new Set('function return const let var for of in if else while do break continue new typeof instanceof switch case default throw try catch finally class extends this async await yield delete void'.split(' '));
+const LIT = new Set(['true', 'false', 'null', 'undefined', 'NaN', 'Infinity']);
+const SYN = {
+  kw: 'var(--color-accent-400)', fn: 'var(--syn-fn, oklch(0.86 0.07 205))', param: 'var(--syn-param, oklch(0.84 0.08 60))', vari: 'var(--color-neutral-100)',
+  prop: 'var(--color-neutral-300)', str: 'var(--syn-str, oklch(0.83 0.08 150))', num: 'oklch(0.80 0.09 25)', com: 'var(--color-neutral-600)', punc: 'var(--color-neutral-500)', op: 'var(--color-accent-300)',
+};
+function paramsOf(code) {
+  const out = new Set(), add = (s) => s.split(',').forEach((p) => { const m = p.replace(/[{}\[\]]/g, ' ').trim().match(/^[A-Za-z_$][\w$]*/); if (m) out.add(m[0]); });
+  let m;
+  const r1 = /function\s*[\w$]*\s*\(([^)]*)\)/g; while ((m = r1.exec(code))) add(m[1]);
+  const r2 = /\(([^()]*)\)\s*=>/g; while ((m = r2.exec(code))) add(m[1]);
+  const r3 = /([A-Za-z_$][\w$]*)\s*=>/g; while ((m = r3.exec(code))) out.add(m[1]);
+  return out;
+}
+function tokenize(line, params) {
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|`(?:[^`\\]|\\.)*`?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)|(\s+)|(=>|[=+\-*/%<>!&|?:]+)|(.)/g;
+  const toks = []; let m;
+  while ((m = re.exec(line))) {
+    const t = m[0]; let c = SYN.punc, fs = 'normal';
+    if (m[1]) { c = SYN.com; fs = 'italic'; }
+    else if (m[2]) c = SYN.str;
+    else if (m[3]) c = SYN.num;
+    else if (m[4]) {
+      const before = line.slice(0, m.index).trimEnd(), after = line.slice(m.index + t.length);
+      if (KW.has(t)) c = SYN.kw;
+      else if (LIT.has(t)) c = SYN.num;
+      else if (/^\s*\(/.test(after)) c = SYN.fn;
+      else if (before.endsWith('.')) c = SYN.prop;
+      else if (params.has(t)) { c = SYN.param; fs = 'italic'; }
+      else c = SYN.vari;
+    }
+    else if (m[5]) c = 'inherit';
+    else if (m[6]) c = SYN.op;
+    toks.push({ t, c, fs });
+    if (!t) re.lastIndex++;
+  }
+  return toks;
+}
+const STEPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+const LS = [0.97, 0.93, 0.87, 0.79, 0.69, 0.59, 0.48, 0.38, 0.28];
+const CF = [0.12, 0.28, 0.52, 0.8, 1, 0.92, 0.75, 0.55, 0.38];
+const PALETTES = {
+  Ember: { hn: 60, cn: 0.009, ha: 62, ca: 0.13, syn: { '--syn-param': 'oklch(0.84 0.07 230)' } },
+  Tide: { hn: 220, cn: 0.02, ha: 185, ca: 0.1, syn: { '--syn-fn': 'oklch(0.86 0.07 290)' } },
+  Graphite: { hn: 250, cn: 0.004, ha: 128, ca: 0.15, syn: { '--syn-str': 'oklch(0.83 0.08 340)' } },
+  Mono: { hn: 0, cn: 0, ha: 0, ca: 0, al: 0.94, bl: 0.155, sl: 0.205 },
+};
+const THEMES = [
+  { name: 'Nocturne', bg: '#161826', ac: '#9184d9' },
+  { name: 'Ember', bg: 'oklch(0.195 0.014 60)', ac: 'oklch(0.72 0.13 62)' },
+  { name: 'Tide', bg: 'oklch(0.195 0.032 220)', ac: 'oklch(0.72 0.1 185)' },
+  { name: 'Graphite', bg: 'oklch(0.195 0.006 250)', ac: 'oklch(0.72 0.15 128)' },
+  { name: 'Mono', bg: 'oklch(0.155 0 0)', ac: 'oklch(0.94 0 0)' },
+];
+function themeVars(name) {
+  const p = PALETTES[name];
+  if (!p) return { display: 'contents' };
+  const v = { display: 'contents', ...p.syn }, o = (l, c, h) => `oklch(${l} ${c.toFixed(3)} ${h})`;
+  STEPS.forEach((s, i) => {
+    v['--color-neutral-' + s] = o(LS[i], p.cn * (i === 0 ? 0.5 : 1.4), p.hn);
+    v['--color-accent-' + s] = o(LS[i], p.ca * CF[i], p.ha);
+    v['--color-accent-2-' + s] = o(LS[i], p.ca * CF[i] * 0.7, p.ha);
+  });
+  v['--color-bg'] = o(p.bl ?? 0.195, p.cn * 1.6, p.hn);
+  v['--color-surface'] = o(p.sl ?? 0.245, p.cn * 1.6, p.hn);
+  v['--color-text'] = o(0.94, p.cn * 0.6, p.hn);
+  v['--color-accent'] = o(p.al ?? 0.72, p.ca, p.ha);
+  v['--color-accent-2'] = o(0.78, p.ca * 0.7, p.ha);
+  v['--color-divider'] = 'color-mix(in srgb, ' + o(0.94, p.cn, p.hn) + ' 16%, transparent)';
+  v['--shadow-sm'] = '0 0 0 1px ' + o(0.38, p.cn * 1.4, p.hn);
+  v['--shadow-md'] = '0 0 0 1px ' + o(0.48, p.cn * 1.4, p.hn) + ', 0 6px 18px rgba(0,0,0,0.55)';
+  v['--shadow-lg'] = '0 0 0 1px ' + o(0.69, p.cn * 1.4, p.hn) + ', 0 16px 40px rgba(0,0,0,0.65)';
+  return v;
+}
+function argText(line, from) {
+  let d = 0, q = null;
+  for (let i = from; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '\\') i++; else if (c === q) q = null; continue; }
+    if (c === '"' || c === "'" || c === '`') q = c;
+    else if ('([{'.includes(c)) d++;
+    else if (')]}'.includes(c)) { if (d === 0) return line.slice(from, i); d--; }
+    else if (c === ',' && d === 0) return line.slice(from, i);
+  }
+  return line.slice(from);
+}
+const ID = '[A-Za-z_$][\\w$]*';
+function instrument(code, watches) {
+  const bad = [];
+  const src = code.split('\n').map((L, i) => {
+    const n = i + 1;
+    let out = L.replace(/\bpeek\(/g, (m, off) => '__p(' + n + ',' + JSON.stringify(argText(L, off + 5).trim().slice(0, 40)) + ',');
+    if (!watches.includes(n)) return out;
+    let m;
+    if ((m = out.match(/^(\s*)return\s+(.*?);?\s*$/)) && !/[({[,]\s*$/.test(m[2])) return m[1] + 'return __w(' + n + ',"return",(' + m[2] + '));';
+    if ((m = out.match(new RegExp('^\\s*for\\s*\\(\\s*(?:const|let|var)\\s+(' + ID + ')\\s+(?:of|in)\\b.*\\{\\s*$')))) return out + ' __w(' + n + ',"' + m[1] + '",' + m[1] + ');';
+    if (/[({[,]\s*$/.test(out) || /^\s*[)}\]]/.test(out)) { bad.push(n); return out; }
+    if ((m = out.match(new RegExp('^\\s*(?:const|let|var)\\s+(' + ID + ')\\s*=')))
+      || (m = out.match(new RegExp('(' + ID + ')\\.push\\(')))
+      || (m = out.match(new RegExp('(?:^|[^\\w$.])(' + ID + ')\\s*(?:\\+=|-=|\\*=|\\/=|\\+\\+|--|=(?![=>]))')))) return out + '; __w(' + n + ',"' + m[1] + '",' + m[1] + ');';
+    bad.push(n);
+    return out;
+  }).join('\n');
+  return { src, bad };
+}
+function evaluate(code, ex, watches) {
+  const hits = [];
+  const cap = (v) => { try { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); } catch (e) { return String(v); } };
+  const __w = (n, label, v) => { if (hits.length < 300) hits.push({ n, label, v: cap(v) }); return v; };
+  const __p = (n, auto, v, label) => { if (hits.length < 300) hits.push({ n, label: label ?? auto, v: cap(v) }); return v; };
+  const { src, bad } = instrument(code, watches);
+  const base = { hits, bad };
+  let fn;
+  try { fn = new Function('__w', '__p', 'peek', '"use strict";\n' + src + '\n;return typeof solve === "function" ? solve : undefined')(__w, __p, (v) => v); }
+  catch (e) { return { ...base, kind: 'error', phase: 'compile', msg: e.name + ': ' + e.message }; }
+  if (!fn) return { ...base, kind: 'error', phase: 'compile', msg: 'Keep a function named solve.' };
+  let out;
+  try { out = fn(clone(ex.A), clone(ex.B)); } catch (e) { return { ...base, kind: 'error', msg: e.name + ': ' + e.message }; }
+  if (out === undefined) return { ...base, kind: 'empty' };
+  const want = ex.ref(clone(ex.A), clone(ex.B));
+  if (JSON.stringify(out) === JSON.stringify(want)) return { ...base, kind: 'ok' };
+  let n = 1;
+  if (Array.isArray(out) && Array.isArray(want)) {
+    n = Math.abs(out.length - want.length);
+    for (let i = 0; i < Math.min(out.length, want.length); i++) if (JSON.stringify(out[i]) !== JSON.stringify(want[i])) n++;
+  }
+  return { ...base, kind: 'wrong', msg: n + (n === 1 ? ' difference' : ' differences'), yours: fmt(out), wanted: fmt(want) };
+}
+function ago(t) {
+  if (!t) return '';
+  const m = Math.floor((Date.now() - t) / 60000);
+  if (m < 1) return 'just now'; if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+class Component extends DCLogic {
+  state = (() => {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
+    return { view: 'home', path: EX[s.path] ? s.path : 'for-of', idx: s.idx || 0, drafts: s.drafts || {}, solved: s.solved || {}, days: s.days || {}, theme: s.theme || null, themeOpen: false, lastAt: s.lastAt || null, checked: {}, watches: {}, tab: 'result', palette: false, q: '', sel: 0 };
+  })();
+  stageRef = React.createRef(); edRef = React.createRef(); statusRef = React.createRef(); palRef = React.createRef(); palInput = React.createRef(); primaryRef = React.createRef();
+  memo = {};
+  theme() { return this.state.theme || this.props.palette || 'Nocturne'; }
+  sampleOn() { return this.props.sampleHistory ?? true; }
+  sv() {
+    if (!this.sampleOn()) return this.state.solved;
+    const base = {};
+    EX['for-of'].forEach((x) => { base[x.id] = true; });
+    EX.map.slice(0, 3).forEach((x) => { base[x.id] = true; });
+    return { ...base, ...this.state.solved };
+  }
+  dayKey(t) { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  days() {
+    const out = { ...(this.state.days || {}) };
+    if (this.sampleOn()) {
+      const now = Date.now();
+      for (let b = 1; b < 90; b++) {
+        const r = Math.abs(Math.sin(b * 12.9898) * 43758.5453) % 1;
+        const n = b <= 4 ? 1 + Math.floor(r * 4) : r < 0.45 ? 0 : Math.ceil((r - 0.45) * 9);
+        if (n) { const k = this.dayKey(now - b * 864e5); out[k] = (out[k] || 0) + n; }
+      }
+    }
+    return out;
+  }
+  stats() {
+    const days = this.days(), now = Date.now(), DAY = 864e5;
+    let streak = 0, b = days[this.dayKey(now)] ? 0 : 1;
+    while (days[this.dayKey(now - b * DAY)]) { streak++; b++; }
+    let week = 0; for (let k = 0; k < 7; k++) week += days[this.dayKey(now - k * DAY)] || 0;
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const start = new Date(today.getTime() - (14 * 7 + today.getDay()) * DAY);
+    const levels = ['var(--color-neutral-800)', 'var(--color-accent-800)', 'var(--color-accent-700)', 'var(--color-accent-600)', 'var(--color-accent-400)'];
+    const cells = [];
+    let activeDays = 0;
+    for (let k = 0; k < 15 * 7; k++) {
+      const t = start.getTime() + k * DAY, n = days[this.dayKey(t)] || 0, future = t > today.getTime();
+      if (n) activeDays++;
+      const lv = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 5 ? 3 : 4;
+      cells.push({ bg: future ? 'transparent' : levels[lv], title: new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + (n ? n + ' solved' : 'no practice') });
+    }
+    return { streak, week, cells, activeDays, levels: levels.map((bg) => ({ bg })) };
+  }
+
+  list() { return EX[this.state.path]; }
+  ex() { const l = this.list(); return l[Math.min(Math.max(this.state.idx, 0), l.length - 1)]; }
+  codeOf(ex) { return this.state.drafts[ex.id] ?? starter(ex); }
+  result(ex) {
+    const c = this.state.checked[ex.id];
+    if (c === undefined) return { kind: 'idle' };
+    const w = this.watchesOf(ex);
+    const k = ex.id + '\u0000' + w.join(',') + '\u0000' + c;
+    if (!this.memo[k]) this.memo[k] = evaluate(c, ex, w);
+    const r = this.memo[k];
+    if (r.phase !== 'compile') this.lastGood[ex.id] = r;
+    return r;
+  }
+  lastGood = {};
+  watchesOf(ex) { return (this.state.watches || {})[ex.id] || []; }
+  toggleWatch(n) {
+    const ex = this.ex(), w = this.watchesOf(ex);
+    const next = w.includes(n) ? w.filter((x) => x !== n) : [...w, n].sort((a, b) => a - b);
+    const code = this.codeOf(ex);
+    this.setState((s) => ({ watches: { ...(s.watches || {}), [ex.id]: next }, checked: { ...s.checked, [ex.id]: code }, tab: next.length > w.length ? 'peek' : s.tab }));
+  }
+  autoCheck() { return this.props.autoCheck ?? true; }
+
+  componentDidMount() {
+    this.onKey = (e) => this.handleKey(e);
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); clearTimeout(this.t); clearTimeout(this.adv); }
+  componentDidUpdate(_, prev) {
+    const s = this.state;
+    if (prev.path !== s.path || prev.idx !== s.idx || prev.drafts !== s.drafts || prev.solved !== s.solved || prev.lastAt !== s.lastAt || prev.theme !== s.theme) {
+      try { localStorage.setItem(KEY, JSON.stringify({ path: s.path, idx: s.idx, drafts: s.drafts, solved: s.solved, days: s.days, lastAt: s.lastAt, theme: s.theme })); } catch (e) {}
+    }
+    const moved = prev.view !== s.view || prev.path !== s.path || prev.idx !== s.idx;
+    if (moved && this.stageRef.current) {
+      this.stageRef.current.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    }
+    if (moved && s.view === 'practice') this.focusEditor();
+    if (s.palette && !prev.palette) {
+      requestAnimationFrame(() => this.palInput.current && this.palInput.current.focus());
+      this.palRef.current && this.palRef.current.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    }
+    if (!s.palette && prev.palette && s.view === 'practice') this.focusEditor(true);
+    if (s.view === 'practice') {
+      const ex = this.ex(), r = this.result(ex), fresh = s.checked[ex.id] === this.codeOf(ex);
+      const okKey = ex.id + '\u0000' + s.checked[ex.id];
+      const wasOk = this.lastOkKey === okKey;
+      if (r.kind === 'ok' && fresh) this.lastOkKey = okKey;
+      if (r.kind === 'ok' && fresh && !wasOk) {
+        if (!s.solved[ex.id]) this.setState((st) => { const k = this.dayKey(Date.now()); const d = st.days || {}; return { solved: { ...st.solved, [ex.id]: true }, days: { ...d, [k]: (d[k] || 0) + 1 }, lastAt: Date.now() }; });
+        this.statusRef.current && this.statusRef.current.animate([{ boxShadow: '0 0 0 1px var(--color-accent), 0 0 32px color-mix(in srgb, var(--color-accent) 35%, transparent)' }, { boxShadow: '0 0 0 1px transparent' }], { duration: 1100, easing: 'ease-out' });
+        this.primaryRef.current && this.primaryRef.current.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+        clearTimeout(this.adv);
+        if (this.props.autoAdvance) this.adv = setTimeout(() => this.next(), 1400);
+      }
+      if (r.kind !== 'ok' || !fresh) clearTimeout(this.adv);
+      if (r.kind === 'ok' && fresh && this.tabOkKey !== okKey) { this.tabOkKey = okKey; if (s.tab !== 'result') this.setState({ tab: 'result' }); }
+      const hc = (r.hits || []).length, key = ex.id;
+      if (this.prevHits && this.prevHits.key === key && this.prevHits.n === 0 && hc > 0 && r.kind !== 'ok' && s.tab !== 'peek') this.setState({ tab: 'peek' });
+      this.prevHits = { key, n: hc };
+    }
+  }
+  focusEditor(keep) {
+    requestAnimationFrame(() => {
+      const el = this.edRef.current; if (!el) return;
+      el.focus({ preventScroll: true });
+      if (keep) return;
+      const ex = this.ex(), code = this.codeOf(ex);
+      const pos = code === starter(ex) ? code.indexOf('\n  \n') + 3 : code.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
+  handleKey(e) {
+    const s = this.state, mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); this.setState({ palette: !s.palette, q: '', sel: 0 }); return; }
+    if (s.palette) { if (e.key === 'Escape') { e.preventDefault(); this.setState({ palette: false }); } return; }
+    const inField = e.target && e.target.closest && e.target.closest('input, textarea, button, a, summary');
+    if (s.view === 'home' && e.key === 'Enter' && !mod && !inField) { e.preventDefault(); this.resume(); return; }
+    if (s.view === 'done' && e.key === 'Enter' && !inField) { e.preventDefault(); this.startNext(); return; }
+    if (s.view === 'done' && e.key === 'Escape') { this.home(); return; }
+    if (s.view !== 'practice') return;
+    if (mod && e.key === 'Enter') { e.preventDefault(); this.primary(); return; }
+    if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); this.next(); return; }
+    if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); this.prev(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); this.home(); }
+  }
+  go(path, idx) { clearTimeout(this.adv); this.setState({ view: 'practice', path, idx, palette: false, lastAt: Date.now() }); }
+  home() { clearTimeout(this.adv); this.setState({ view: 'home', palette: false }); }
+  resumeTarget() {
+    const sv = this.sv(), s = this.state, l = EX[s.path], i = Math.min(s.idx, l.length - 1);
+    if (!sv[l[i].id]) return { path: s.path, idx: i };
+    const j = l.findIndex((x) => !sv[x.id]);
+    if (j >= 0) return { path: s.path, idx: j };
+    const p = PATHS.find((p) => EX[p.slug] && EX[p.slug].some((x) => !sv[x.id]));
+    return p ? { path: p.slug, idx: this.firstUnsolved(p.slug) } : { path: s.path, idx: i };
+  }
+  resume() { const t = this.resumeTarget(); this.go(t.path, t.idx); }
+  firstUnsolved(slug) { const i = EX[slug].findIndex((x) => !this.sv()[x.id]); return i < 0 ? 0 : i; }
+  next() { const l = this.list(); if (this.state.idx < l.length - 1) this.go(this.state.path, this.state.idx + 1); else { clearTimeout(this.adv); this.setState({ view: 'done' }); } }
+  prev() { if (this.state.idx > 0) this.go(this.state.path, this.state.idx - 1); }
+  nextPathObj() { const i = PATHS.findIndex((p) => p.slug === this.state.path); return PATHS.slice(i + 1).find((p) => EX[p.slug]); }
+  startNext() { const n = this.nextPathObj(); if (n) this.go(n.slug, this.firstUnsolved(n.slug)); else this.home(); }
+  run() { const ex = this.ex(), c = this.codeOf(ex); clearTimeout(this.t); this.setState((s) => ({ checked: { ...s.checked, [ex.id]: c } })); if (this.result(ex).kind !== 'ok') this.statusRef.current && this.statusRef.current.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 220 }); }
+  primary() { const ex = this.ex(); const ok = this.result(ex).kind === 'ok' && this.state.checked[ex.id] === this.codeOf(ex); if (ok) this.next(); else this.run(); }
+  setCode(v) {
+    const ex = this.ex();
+    this.setState((s) => ({ drafts: { ...s.drafts, [ex.id]: v }, lastAt: Date.now() }));
+    clearTimeout(this.t);
+    if (this.autoCheck()) this.t = setTimeout(() => this.setState((s) => ({ checked: { ...s.checked, [ex.id]: v } })), 350);
+  }
+  edKey(e) {
+    const el = e.target;
+    if ((e.metaKey || e.ctrlKey) && e.key === '.') { e.preventDefault(); this.toggleWatch(el.value.slice(0, el.selectionStart).split('\n').length); return; }
+    if (e.key === 'Tab' || (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey)) {
+      e.preventDefault();
+      const v = el.value, a = el.selectionStart, b = el.selectionEnd;
+      let ins = '  ';
+      if (e.key === 'Enter') {
+        const lineStart = v.lastIndexOf('\n', a - 1) + 1;
+        const indent = (v.slice(lineStart, a).match(/^\s*/) || [''])[0];
+        const opener = /[{[(]\s*$/.test(v.slice(lineStart, a));
+        ins = '\n' + indent + (opener ? '  ' : '');
+      }
+      const nv = v.slice(0, a) + ins + v.slice(b);
+      this.setCode(nv);
+      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = a + ins.length; });
+    }
+  }
+  palItems() {
+    const q = this.state.q.trim().toLowerCase();
+    const items = [{ mark: '⌂', label: 'Home', sub: 'esc', run: () => this.home(), mono: false }];
+    PATHS.forEach((p) => { if (EX[p.slug]) items.push({ mark: '→', label: p.name, sub: EX[p.slug].filter((x) => this.sv()[x.id]).length + ' / ' + EX[p.slug].length, run: () => this.go(p.slug, this.firstUnsolved(p.slug)), mono: true }); });
+    THEMES.forEach((t) => items.push({ mark: '◐', label: 'Theme: ' + t.name, sub: t.name === this.theme() ? 'current' : 'theme', run: () => this.setState({ theme: t.name, palette: false }), mono: false }));
+    ALL.forEach((x) => { const i = EX[x.path].indexOf(x); items.push({ mark: this.sv()[x.id] ? '✓' : '', label: x.title, sub: PATHS.find((p) => p.slug === x.path).name + ' · ' + (i + 1), run: () => this.go(x.path, i), mono: false }); });
+    return q ? items.filter((it) => (it.label + ' ' + it.sub).toLowerCase().includes(q)) : items.slice(0, 1 + Object.keys(EX).length).concat(EX[this.state.path].map((x, i) => items.find((it) => it.run && it.label === x.title && it.sub === PATHS.find((p) => p.slug === x.path).name + ' · ' + (i + 1))));
+  }
+
+  renderVals() {
+    const s = this.state, ex = this.ex(), list = this.list(), sv = this.sv();
+    const pathObj = PATHS.find((p) => p.slug === s.path);
+    const code = this.codeOf(ex), r = this.result(ex);
+    const fresh = s.checked[ex.id] === code;
+    const ok = r.kind === 'ok' && fresh;
+    const isLast = s.idx >= list.length - 1;
+    const solvedIn = (slug) => (EX[slug] || []).filter((x) => sv[x.id]).length;
+    const upNext = PATHS.find((p) => EX[p.slug] && solvedIn(p.slug) < EX[p.slug].length);
+    const dotsFor = (activeIdx, go) => list.map((x, i) => ({
+      bg: sv[x.id] ? 'var(--color-accent)' : i === activeIdx ? 'var(--color-neutral-300)' : 'var(--color-neutral-800)',
+      ring: i === activeIdx ? '0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-neutral-500)' : 'none',
+      title: (i + 1) + '. ' + x.title + (sv[x.id] ? ' ✓' : ''),
+      go: go ? () => this.go(s.path, i) : undefined,
+    }));
+    const lines = code.split('\n').length;
+    const pal = s.palette ? this.palItems() : [];
+    const sel = Math.min(s.sel, Math.max(pal.length - 1, 0));
+    const doneCount = solvedIn(s.path);
+    const nextP = this.nextPathObj();
+    return {
+      kb: K,
+      themeStyle: themeVars(this.theme()),
+      themeOpen: !!s.themeOpen,
+      toggleTheme: () => this.setState({ themeOpen: !s.themeOpen }),
+      closeTheme: () => this.setState({ themeOpen: false }),
+      themeName: this.theme(),
+      themeDot: (THEMES.find((t) => t.name === this.theme()) || THEMES[0]).ac,
+      themes: THEMES.map((t) => ({ ...t, pick: () => this.setState({ theme: t.name, themeOpen: false }), ring: t.name === this.theme() ? '0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-text)' : '0 0 0 1px var(--color-neutral-700)', weight: t.name === this.theme() ? 500 : 400 })),
+      isHome: s.view === 'home', isPractice: s.view === 'practice', isDone: s.view === 'done', paletteOpen: s.palette,
+      stageRef: this.stageRef, edRef: this.edRef, statusRef: this.statusRef, palRef: this.palRef, palInput: this.palInput, primaryRef: this.primaryRef,
+      totalSolved: ALL.filter((x) => sv[x.id]).length, totalCount: ALL.length,
+      solvedPct: Math.round(ALL.filter((x) => sv[x.id]).length / ALL.length * 100),
+      pathsDone: Object.keys(EX).filter((k) => EX[k].every((x) => sv[x.id])).length, pathsOpen: Object.keys(EX).length,
+      prog: s.view === 'home' ? this.stats() : { cells: [], levels: [] },
+      isSample: this.sampleOn(),
+      resumeKicker: (s.lastAt || ALL.some((x) => sv[x.id])) ? 'Continue where you left off' : 'Start here',
+      resume: (() => {
+        const t = this.resumeTarget(), rl = EX[t.path], rx = rl[t.idx];
+        return { title: rx.title, pathName: PATHS.find((p) => p.slug === t.path).name, pos: t.idx + 1, total: rl.length, prompt: rx.prompt, ago: ago(s.lastAt), hasAgo: !!s.lastAt,
+          dots: rl.map((x, i) => ({ bg: sv[x.id] ? 'var(--color-accent)' : i === t.idx ? 'var(--color-neutral-300)' : 'var(--color-neutral-800)' })) };
+      })(),
+      resumeGo: () => this.resume(),
+      pathRows: PATHS.map((p, i) => {
+        const l = EX[p.slug], n = solvedIn(p.slug);
+        return { num: String(i + 1).padStart(2, '0'), name: p.name, desc: p.desc, count: l ? n + ' / ' + l.length : '—', pct: l ? Math.round(n / l.length * 100) : 0, upNext: upNext === p && n > 0 || (upNext === p && i === 0), done: !!l && n === l.length, disabled: !l, opacity: l ? 1 : 0.4, open: () => l && this.go(p.slug, this.firstUnsolved(p.slug)) };
+      }),
+      openPalette: () => this.setState({ palette: true, q: '', sel: 0 }),
+      goHome: () => this.home(),
+      pathName: pathObj.name, posLabel: (s.idx + 1) + ' / ' + list.length, dots: dotsFor(s.idx, true),
+      ex, solvedNow: !!sv[ex.id],
+      inputJson: fmt(ex.A), inputShape: shape(ex.A), hasExtra: ex.B !== null, extraJson: fmt(ex.B), extraShape: shape(ex.B),
+      expectedJson: fmt(ex.ref(clone(ex.A), clone(ex.B))), expectedShape: shape(ex.ref(clone(ex.A), clone(ex.B))),
+      signature: ex.B === null ? '(input)' : '(input, extra)',
+      code, onCode: (e) => this.setCode(e.target.value), onEdKey: (e) => this.edKey(e),
+      ...(() => {
+        const watches = this.watchesOf(ex);
+        const src = r.phase === 'compile' ? (this.lastGood[ex.id] || { hits: [], bad: [] }) : r;
+        const dim = r.phase === 'compile' && (src.hits || []).length > 0;
+        const groups = [], byKey = {};
+        (src.hits || []).forEach((h) => { const k = h.n + '|' + h.label; if (!byKey[k]) { byKey[k] = { n: h.n, label: h.label, vals: [] }; groups.push(byKey[k]); } byKey[k].vals.push(h.v); });
+        groups.sort((a, b) => a.n - b.n);
+        const short = (v) => { const t = fmt(v).replace(/\s*\n\s*/g, ' '); return t.length > 56 ? t.slice(0, 55) + '…' : t; };
+        const codeLines = code.split('\n');
+        const params = paramsOf(code);
+        const lineRows = codeLines.map((text, i) => {
+          const n = i + 1, watched = watches.includes(n), gs = groups.filter((g) => g.n === n);
+          let ghost = '';
+          if (gs.length) ghost = gs.map((g) => (g.label === 'return' ? '→ ' : g.label + ' = ') + short(g.vals[g.vals.length - 1]) + (g.vals.length > 1 ? '  ×' + g.vals.length : '')).join('   ');
+          else if (watched && (src.bad || []).includes(n)) ghost = 'nothing to watch on this line';
+          else if (watched && src.hits && s.checked[ex.id] !== undefined) ghost = 'not reached';
+          return {
+            n, text, ghost, watched, toks: tokenize(text, params),
+            ghostColor: gs.length ? (dim ? 'var(--color-neutral-600)' : 'var(--color-accent-300)') : 'var(--color-neutral-600)',
+            bg: watched ? 'color-mix(in srgb, var(--color-accent) 9%, transparent)' : 'transparent',
+            dot: watched ? 'var(--color-accent)' : 'transparent', dotRing: watched ? 'none' : 'inset 0 0 0 1px transparent',
+            numColor: watched ? 'var(--color-accent-300)' : 'var(--color-neutral-700)',
+            tip: watched ? 'Stop watching line ' + n : 'Watch line ' + n + ' (' + K.dot + ')',
+            toggle: () => this.toggleWatch(n),
+          };
+        });
+        const peekCount = groups.reduce((a, g) => a + g.vals.length, 0);
+        const onPeek = s.tab === 'peek';
+        return {
+          lines: lineRows, edH: codeLines.length * 21 + 28,
+          peekGroups: groups.map((g) => ({ n: g.n, label: g.label === 'return' ? 'return value' : g.label, meta: g.vals.length > 1 ? g.vals.length + ' passes' : '', rows: g.vals.slice(0, 30).map((v, i) => ({ i: g.vals.length > 1 ? '#' + (i + 1) : '', text: fmt(v) })) })),
+          peekCount, hasPeeks: peekCount > 0, peekEmpty: groups.length === 0, peekDim: dim, peekOpacity: dim ? 0.5 : 1,
+          peekSample: 'peek(input)  ·  peek(value, "doubled")',
+          onPeek, onResult: !onPeek, peekOk: r.kind === 'ok' && s.checked[ex.id] === code,
+          tabPeek: () => this.setState({ tab: 'peek' }), tabResult: () => this.setState({ tab: 'result' }),
+          tabPeekColor: onPeek ? 'var(--color-text)' : 'var(--color-neutral-400)', tabResultColor: onPeek ? 'var(--color-neutral-400)' : 'var(--color-text)',
+          tabPeekLine: onPeek ? 'inset 0 -2px 0 var(--color-accent)' : 'none', tabResultLine: onPeek ? 'none' : 'inset 0 -2px 0 var(--color-accent)',
+          resultDot: r.kind === 'ok' ? 'var(--color-accent)' : r.kind === 'idle' ? 'var(--color-neutral-600)' : 'var(--color-neutral-300)',
+        };
+      })(),
+      isPristine: code === starter(ex),
+      resetCode: () => { this.setCode(starter(ex)); this.focusEditor(); },
+      editorShadow: ok ? '0 0 0 1px var(--color-accent), 0 0 40px -12px color-mix(in srgb, var(--color-accent) 60%, transparent)' : '0 0 0 1px var(--color-neutral-800)',
+      st: { idle: r.kind === 'idle', empty: r.kind === 'empty', error: r.kind === 'error', wrong: r.kind === 'wrong', ok: r.kind === 'ok', msg: r.msg, yours: r.yours, wanted: r.wanted },
+      idleText: this.autoCheck() ? 'Start typing. Your answer is checked as you go.' : 'Press ' + K.enter + ' to check your answer.',
+      isStale: s.checked[ex.id] !== undefined && !fresh && !this.autoCheck(),
+      okTitle: 'Correct', okHint: isLast ? K.enter + ' finish path' : (this.props.autoAdvance ? 'Moving on…' : K.enter + ' next exercise'),
+      showHints: this.props.showHints ?? true,
+      primaryVerb: ok ? (isLast ? 'finish' : 'next') : 'run',
+      primaryLabel: ok ? (isLast ? 'Finish path' : 'Next') : 'Run',
+      primaryBg: ok ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
+      primary: () => this.primary(), prev: () => this.prev(), skip: () => this.next(), isFirst: s.idx === 0,
+      doneSummary: doneCount + ' of ' + list.length + ' solved.' + (doneCount < list.length ? ' Skipped exercises stay open in the path.' : ''),
+      doneList: list.map((x) => ({ title: x.title, mark: sv[x.id] ? '✓' : '○', cls: sv[x.id] ? 'tag-accent' : 'tag-neutral' })),
+      hasNextPath: !!nextP, noNextPath: !nextP, nextPath: nextP || {}, startNextPath: () => this.startNext(),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value, sel: 0 }),
+      onPalKey: (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); this.setState({ sel: Math.min(sel + 1, pal.length - 1) }); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState({ sel: Math.max(sel - 1, 0) }); }
+        else if (e.key === 'Enter' && pal[sel]) { e.preventDefault(); pal[sel].run(); }
+      },
+      backdropDown: (e) => { if (e.target === e.currentTarget) this.setState({ palette: false }); },
+      palItems: pal.map((it, i) => ({ ...it, bg: i === sel ? 'color-mix(in srgb, var(--color-accent) 16%, transparent)' : 'transparent', font: it.mono ? "'JetBrains Mono', monospace" : 'var(--font-body)', hover: () => this.state.sel !== i && this.setState({ sel: i }) })),
+      palEmpty: s.palette && pal.length === 0,
+    };
+  }
+}
+</script>
+</body>
+</html>

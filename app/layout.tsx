@@ -1,11 +1,14 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { ThemeProvider } from '@/components/theme-provider'
+import { Inter, JetBrains_Mono } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 
-const _geist = Geist({ subsets: ['latin'] })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-inter' })
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains-mono' })
+
+// Applies the saved theme before first paint. Reads the same key as hooks/use-progress.ts.
+const THEME_SCRIPT = `try{var t=JSON.parse(localStorage.getItem('reshape:progress:v1')||'{}').theme;if(typeof t==='string')document.documentElement.dataset.theme=t}catch(e){}`
 
 export const metadata: Metadata = {
   title: 'frontend.gym() — practice JS data transformations',
@@ -32,11 +35,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#161826',
 }
 
 export default function RootLayout({
@@ -45,9 +45,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <Script id="theme" strategy="beforeInteractive">
+          {THEME_SCRIPT}
+        </Script>
+        {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

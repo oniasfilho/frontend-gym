@@ -8,6 +8,8 @@ import { collectionLessons } from '@/lib/lessons/collections'
 import { entryLessons } from '@/lib/lessons/entries'
 import { nullableLessons } from '@/lib/lessons/nullable'
 import { mixedPracticeLessons } from '@/lib/lessons/mixed'
+import { stringHelperLessons } from '@/lib/lessons/string-helpers'
+import { arrayHelperLessons } from '@/lib/lessons/array-helpers'
 export type { Exercise, Difficulty, PathSlug } from '@/lib/exercise-model'
 
 const baseMixedExercises: Exercise[] = [
@@ -267,6 +269,8 @@ export const dedicatedExercises: Exercise[] = [
   ...queryLessons,
   ...reduceLessons,
   ...arrayLessons,
+  ...stringHelperLessons,
+  ...arrayHelperLessons,
   ...syntaxLessons,
   ...collectionLessons,
   ...entryLessons,

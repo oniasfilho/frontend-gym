@@ -1,18 +1,20 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, CircleX, Lightbulb, LoaderCircle, TriangleAlert } from 'lucide-react'
+import type { Ref } from 'react'
+import { Badge } from '@/components/ui/badge'
 import type { DiffEntry } from '@/lib/diff'
-import { formatValue } from '@/lib/diff'
-import type { Peek, RunOutcome } from '@/lib/runner'
+import { formatShort, formatValue } from '@/lib/format-value'
+import type { PeekGroup } from '@/lib/peeks'
+import type { RunOutcome } from '@/lib/runner'
 import { cn } from '@/lib/utils'
-import { JsonView } from './json-view'
-import { Kbd } from './kbd'
+import { useKeys } from './kbd'
 
 export type RunState =
   | { status: 'idle' }
   | { status: 'running' }
   | { status: 'done'; outcome: RunOutcome; diffs: DiffEntry[]; code: string; note?: string }
+
+export type OutputTab = 'result' | 'peek'
 
 const KIND_LABEL: Record<DiffEntry['kind'], string> = {
   changed: 'value',
@@ -21,54 +23,17 @@ const KIND_LABEL: Record<DiffEntry['kind'], string> = {
   type: 'type',
 }
 
-function typeName(value: unknown) {
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'array'
-  return typeof value
+const MONO_GRID = 'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 font-mono text-[12.5px] leading-[1.6]'
+
+function Dot({ className }: { className: string }) {
+  return <span aria-hidden="true" className={cn('size-1.5 shrink-0 rounded-full', className)} />
 }
 
-function Side({ label, value, includeType }: { label: string; value: unknown; includeType?: boolean }) {
-  const [open, setOpen] = useState(false)
-  const text = formatValue(value, open ? 20000 : 120)
-  const kind = typeName(value)
-  const rendered = includeType && kind !== text ? `${kind} ${text}` : text
-  const truncated = !open && rendered.endsWith('…')
-
+function Status({ dot, children, className }: { dot: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="min-w-0">
-      <div className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="font-mono text-xs break-all text-foreground">{rendered}</div>
-      {truncated && (
-        <button type="button" className="font-mono text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>
-          Show full value
-        </button>
-      )}
-    </div>
-  )
-}
-
-function DiffRow({ entry }: { entry: DiffEntry }) {
-  return (
-    <li className="flex flex-col gap-2 border-b px-3 py-2 last:border-b-0">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="w-16 shrink-0 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{KIND_LABEL[entry.kind]}</span>
-        <code className="truncate font-mono text-xs text-foreground" title={entry.path}>
-          {entry.path}
-        </code>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {entry.kind !== 'missing' && <Side label="yours" value={entry.actual} includeType={entry.kind === 'type'} />}
-        {entry.kind !== 'unexpected' && <Side label="expected" value={entry.expected} includeType={entry.kind === 'type'} />}
-      </div>
-    </li>
-  )
-}
-
-function Pane({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('flex min-h-0 min-w-0 flex-col', className)}>
-      <h3 className="px-3 pt-3 pb-1.5 font-mono text-xs text-muted-foreground">{title}</h3>
-      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">{children}</div>
+    <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]', className)}>
+      <Dot className={dot} />
+      {children}
     </div>
   )
 }
@@ -76,13 +41,11 @@ function Pane({ title, children, className }: { title: string; children: React.R
 function Logs({ logs }: { logs: string[] }) {
   if (logs.length === 0) return null
   return (
-    <details className="border-t">
-      <summary className="cursor-pointer px-3 py-2 font-mono text-xs text-muted-foreground hover:text-foreground">
-        console ({logs.length})
-      </summary>
-      <ol className="flex flex-col px-3 pb-3">
+    <details className="text-xs text-neutral-400">
+      <summary>console ({logs.length})</summary>
+      <ol className="mt-2 flex flex-col gap-1">
         {logs.map((line, i) => (
-          <li key={i} className="border-b border-dashed py-1 font-mono text-xs whitespace-pre-wrap last:border-b-0">
+          <li key={i} className="rounded-md bg-bg px-2 py-1 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap text-neutral-200">
             {line}
           </li>
         ))}
@@ -91,54 +54,93 @@ function Logs({ logs }: { logs: string[] }) {
   )
 }
 
-type Tab = 'result' | 'peek'
+export function OutputPanel({
+  ref,
+  tab,
+  onTab,
+  state,
+  expected,
+  correct,
+  isStale,
+  approach,
+  solution,
+  successTitle,
+  successHint,
+  nextHint,
+  focus,
+  focusViolation,
+  groups,
+  peekCount,
+  dimmed,
+  peekSample,
+}: {
+  ref?: Ref<HTMLDivElement>
+  tab: OutputTab
+  onTab: (tab: OutputTab) => void
+  state: RunState
+  expected: unknown
+  /** The latest run matches the current code and passes. */
+  correct: boolean
+  isStale: boolean
+  approach?: string
+  solution?: string
+  successTitle: string
+  successHint?: string
+  /** "⌘↵ next exercise", or empty when moving on isn't possible yet. */
+  nextHint: string
+  focus: string
+  focusViolation: string | null
+  groups: PeekGroup[]
+  peekCount: number
+  dimmed: boolean
+  peekSample: string
+}) {
+  const keys = useKeys()
+  const failed = state.status === 'done' && (!state.outcome.ok || Boolean(state.note) || state.diffs.length > 0 || Boolean(focusViolation))
+  const resultDot = correct ? 'bg-accent' : failed ? 'bg-neutral-300' : 'bg-neutral-600'
 
-function PeekView({ peeks, dimmed }: { peeks: Peek[]; dimmed: boolean }) {
-  if (peeks.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
-        <p>Click a line number to add a breakpoint, or wrap any value to see its shape here while you type:</p>
-        <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">
-          {'peek(scan)  ·  peek(scan, "after map")  ·  return peek(A.map(...))'}
-        </code>
-      </div>
-    )
-  }
-  // A breakpoint inside a loop peeks once per pass, so number repeated labels.
-  const hits = new Map<string, number>()
-  const hitNumbers = peeks.map((p) => {
-    const count = (hits.get(p.label) ?? 0) + 1
-    hits.set(p.label, count)
-    return count
-  })
   return (
-    <ol className={cn('flex flex-col transition-opacity', dimmed && 'opacity-50')}>
-      {peeks.map((p, i) => (
-        <li key={i} className="border-b last:border-b-0">
-          <h3 className="flex items-center gap-2 px-3 pt-3 pb-1.5 font-mono text-xs">
-            <span className="text-foreground">{p.label}</span>
-            {hits.get(p.label)! > 1 && <span className="text-muted-foreground tabular-nums">{hitNumbers[i]}/{hits.get(p.label)}</span>}
-            <span className="text-muted-foreground">{typeName(p.value)}</span>
-            {Array.isArray(p.value) && <span className="text-muted-foreground">[{p.value.length}]</span>}
-          </h3>
-          <div className="px-3 pb-3">
-            <JsonView value={p.value} />
-          </div>
-        </li>
-      ))}
-    </ol>
+    <div ref={ref} className="flex h-[38%] min-h-[170px] flex-none flex-col overflow-hidden rounded-[10px] bg-surface">
+      <div role="tablist" aria-label="Output" className="rule-b flex flex-none items-center gap-0.5 px-2 pt-1.5">
+        <TabButton active={tab === 'result'} onClick={() => onTab('result')}>
+          <Dot className={resultDot} />
+          Result
+        </TabButton>
+        <TabButton active={tab === 'peek'} onClick={() => onTab('peek')}>
+          Peek
+          {peekCount > 0 && (
+            <Badge size="sm" className="tabular-nums">
+              {peekCount}
+            </Badge>
+          )}
+        </TabButton>
+        <span className="ml-auto truncate pr-1.5 font-mono text-[11px] whitespace-nowrap text-neutral-500">{keys.dot} watch line</span>
+      </div>
+      <div role="tabpanel" aria-live={tab === 'result' ? 'polite' : undefined} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto px-3.5 py-3">
+        {tab === 'result' ? (
+          <ResultView
+            state={state}
+            expected={expected}
+            correct={correct}
+            isStale={isStale}
+            approach={approach}
+            solution={solution}
+            successTitle={successTitle}
+            successHint={successHint}
+            nextHint={nextHint}
+            focus={focus}
+            focusViolation={focusViolation}
+            runKey={keys.enter}
+          />
+        ) : (
+          <PeekView groups={groups} dimmed={dimmed} correct={correct} peekSample={peekSample} onShowResult={() => onTab('result')} />
+        )}
+      </div>
+    </div>
   )
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -146,8 +148,8 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'flex h-full items-center gap-1.5 border-b-2 px-1 font-mono text-xs transition-colors',
-        active ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+        'flex cursor-pointer items-center gap-[7px] px-2.5 py-[7px] text-xs font-medium transition-colors hover:text-text',
+        active ? 'text-text shadow-[inset_0_-2px_0_var(--color-accent)]' : 'text-neutral-400',
       )}
     >
       {children}
@@ -155,251 +157,243 @@ function TabButton({
   )
 }
 
-export function ResultPanel({
-  state,
-  expected,
-  isStale,
-  approach,
-  solution,
-  peekSample,
-  successTitle = 'Correct',
-  successHint,
-  focus,
-  focusViolation,
-}: {
-  state: RunState
-  expected: unknown
-  isStale: boolean
-  approach?: string
-  solution?: string
-  peekSample: string
-  successTitle?: string
-  successHint?: string
-  focus?: string
-  focusViolation?: string | null
-}) {
-  const [tab, setTab] = useState<Tab>('result')
-  const lastPeeks = useRef<Peek[]>([])
-  const [prevPeekCount, setPrevPeekCount] = useState(0)
-
-  const livePeeks = state.status === 'done' ? state.outcome.peeks : null
-  const compileFailed = state.status === 'done' && !state.outcome.ok && state.outcome.phase === 'compile'
-  const peeks = livePeeks && !compileFailed ? livePeeks : lastPeeks.current
-  const peekCount = peeks.length
-
-  if (peekCount !== prevPeekCount) {
-    setPrevPeekCount(peekCount)
-    if (prevPeekCount === 0 && peekCount > 0) setTab('peek')
-  }
-
-  useEffect(() => {
-    if (livePeeks && !compileFailed) lastPeeks.current = livePeeks
-  }, [livePeeks, compileFailed])
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label="Output" className="flex h-9 shrink-0 items-stretch gap-4 border-b px-3">
-        <TabButton active={tab === 'result'} onClick={() => setTab('result')}>
-          Result
-        </TabButton>
-        <TabButton active={tab === 'peek'} onClick={() => setTab('peek')}>
-          Peek
-          {peekCount > 0 && (
-            <span className="rounded bg-muted px-1 text-[0.6875rem] leading-4 text-muted-foreground">{peekCount}</span>
-          )}
-        </TabButton>
-      </div>
-      <div role="tabpanel" className="min-h-0 flex-1 overflow-auto">
-        {tab === 'result' ? (
-          <ResultView
-            state={state}
-            expected={expected}
-            isStale={isStale}
-            approach={approach}
-            solution={solution}
-            peekSample={peekSample}
-            successTitle={successTitle}
-            successHint={successHint}
-            focus={focus}
-            focusViolation={focusViolation}
-          />
-        ) : (
-          <PeekView peeks={peeks} dimmed={compileFailed} />
-        )}
-      </div>
-    </div>
-  )
-}
-
 function ResultView({
   state,
   expected,
+  correct,
   isStale,
   approach,
   solution,
-  peekSample,
   successTitle,
   successHint,
+  nextHint,
   focus,
   focusViolation,
+  runKey,
 }: {
   state: RunState
   expected: unknown
+  correct: boolean
   isStale: boolean
   approach?: string
   solution?: string
-  peekSample: string
   successTitle: string
   successHint?: string
-  focus?: string
-  focusViolation?: string | null
+  nextHint: string
+  focus: string
+  focusViolation: string | null
+  runKey: string
 }) {
   if (state.status === 'idle') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-        <p className="flex flex-wrap items-center justify-center gap-1.5">
-          Press <Kbd mod>Enter</Kbd> to run your solution
-        </p>
-        <p>
-          Click a line number to add a breakpoint and inspect that line while you type, or wrap a value in{' '}
-          <code className="font-mono text-xs text-foreground">peek()</code>.
-        </p>
-        <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">{peekSample}</code>
-      </div>
+      <Status dot="bg-neutral-600" className="text-neutral-400">
+        Start typing. Your answer is checked as you go.
+      </Status>
     )
   }
 
   if (state.status === 'running') {
     return (
-      <div className="flex h-full items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">
-        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+      <Status dot="bg-neutral-600 animate-pulse" className="text-neutral-400">
         Running…
-      </div>
+      </Status>
     )
   }
 
   const { outcome, diffs, note } = state
-  const stale = isStale ? <span className="font-mono text-xs text-muted-foreground">edited since last run</span> : null
+  const stale = isStale ? (
+    <span className="text-[11px] text-neutral-500">
+      Edited since last check · {runKey} to run
+    </span>
+  ) : null
 
   if (outcome.ok && note) {
     return (
-      <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-          <TriangleAlert className="size-4 text-destructive" aria-hidden="true" />
-          <span className="truncate text-sm font-medium text-destructive">{note}</span>
-          <span className="ml-auto">{stale}</span>
+      <>
+        <Status dot="bg-neutral-300">
+          <span className="font-medium">{note}</span>
+        </Status>
+        <div className={MONO_GRID}>
+          <span className="text-neutral-500">yours</span>
+          <span className="whitespace-pre-wrap">{formatValue(outcome.value)}</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto">
-          <Pane title="yours">
-            <JsonView value={outcome.value} />
-          </Pane>
-        </div>
+        {stale}
         <Logs logs={outcome.logs} />
-      </div>
+      </>
     )
   }
 
   if (!outcome.ok) {
     return (
-      <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-          <TriangleAlert className="size-4 text-destructive" aria-hidden="true" />
-          <span className="text-sm font-medium text-destructive">
-            {outcome.phase === 'compile' ? 'Compile error' : outcome.phase === 'timeout' ? 'Timed out' : 'Runtime error'}
-          </span>
-          <span className="ml-auto">{stale}</span>
+      <>
+        <div className="flex flex-col gap-1.5">
+          <Status dot="bg-neutral-300">
+            <span className="font-medium">Doesn&apos;t run yet</span>
+          </Status>
+          <code className="font-mono text-[12.5px] leading-normal whitespace-pre-wrap text-neutral-300">
+            {outcome.name}: {outcome.message}
+          </code>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-3">
-          <pre className="rounded-md bg-destructive/10 p-3 font-mono text-xs leading-5 whitespace-pre-wrap text-destructive">
-            <span className="font-semibold">{outcome.name}:</span> {outcome.message}
-          </pre>
-        </div>
+        {stale}
         <Logs logs={outcome.logs} />
-      </div>
+      </>
     )
   }
 
-  const correct = diffs.length === 0
+  const passed = diffs.length === 0
 
-  if (correct && focusViolation && !isStale) {
+  if (passed && focusViolation && !isStale) {
     return (
-      <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-          <Lightbulb className="text-warning" aria-hidden="true" />
-          <span className="text-sm font-medium">Correct output</span>
-          <span className="font-mono text-xs text-warning">learning constraint not satisfied</span>
-        </div>
-        <div className="flex flex-1 flex-col justify-center gap-3 p-5">
-          <p className="text-sm text-muted-foreground">The expected output matched. This exercise is focused on <code className="font-mono text-foreground">{focus}()</code>, but your solution appears to use <code className="font-mono text-warning">{focusViolation}()</code>.</p>
-          <p className="text-sm text-muted-foreground">Try solving it with the intended transformation. This is instructional feedback, not a compiler error.</p>
-          <div className="flex gap-2"><button type="button" className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted">Review focus</button><button type="button" className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">Try again</button></div>
-        </div>
+      <>
+        <Status dot="bg-neutral-300">
+          <span className="font-medium">Correct output</span>
+          <span className="text-neutral-400">learning constraint not satisfied</span>
+        </Status>
+        <p className="text-[13px] leading-[1.55] text-pretty text-neutral-300">
+          This exercise is focused on <code className="font-mono text-text">{focus}()</code>, but your solution appears to use{' '}
+          <code className="font-mono text-text">{focusViolation}()</code>. Try solving it with the intended transformation.
+        </p>
         <Logs logs={outcome.logs} />
-      </div>
+      </>
+    )
+  }
+
+  if (passed) {
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-800 text-xs text-accent-200">
+              ✓
+            </span>
+            <span className="text-[15px] font-medium text-accent-200">{successTitle}</span>
+            {correct && nextHint && <span className="ml-auto text-xs whitespace-nowrap text-neutral-400">{nextHint}</span>}
+          </div>
+          {!isStale && approach && <p className="text-[13px] leading-[1.55] text-pretty text-neutral-300">{approach}</p>}
+          {!isStale && successHint && <p className="text-[13px] leading-[1.55] text-pretty text-neutral-400">{successHint}</p>}
+          {!isStale && solution && (
+            <details className="text-xs text-neutral-400">
+              <summary>Compare with the reference</summary>
+              <pre className="mt-2 font-mono text-[12.5px] leading-[1.6] whitespace-pre-wrap text-neutral-200">{solution}</pre>
+            </details>
+          )}
+        </div>
+        {stale}
+        <Logs logs={outcome.logs} />
+      </>
+    )
+  }
+
+  if (outcome.value === undefined) {
+    return (
+      <>
+        <Status dot="bg-neutral-500" className="text-neutral-300">
+          solve() returns nothing yet. Add a <code className="font-mono text-text">return</code>.
+        </Status>
+        {stale}
+        <Logs logs={outcome.logs} />
+      </>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col" role="status" aria-live="polite">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-        {correct ? (
-          <>
-            <CircleCheck className="size-4 text-success" aria-hidden="true" />
-            <span className="text-sm font-medium text-success">{successTitle}</span>
-          </>
-        ) : (
-          <>
-            <CircleX className="size-4 text-destructive" aria-hidden="true" />
-            <span className="text-sm font-medium text-destructive">Incorrect</span>
-            <span className="font-mono text-xs text-muted-foreground">
-              {diffs.length >= 50 ? '50+' : diffs.length} {diffs.length === 1 ? 'difference' : 'differences'}
-            </span>
-          </>
-        )}
-        <span className="font-mono text-xs text-muted-foreground">{outcome.durationMs.toFixed(1)}ms</span>
-        <span className="ml-auto">{stale}</span>
+    <>
+      <div className="flex flex-col gap-2">
+        <Status dot="bg-neutral-300">
+          <span className="font-medium">Close, not yet</span>
+          <span className="text-neutral-400">
+            {diffs.length >= 50 ? '50+' : diffs.length} {diffs.length === 1 ? 'difference' : 'differences'}
+          </span>
+        </Status>
+        <div className={cn(MONO_GRID, 'gap-y-1')}>
+          <span className="text-neutral-500">yours</span>
+          <span className="whitespace-pre-wrap text-text">{formatValue(outcome.value)}</span>
+          <span className="text-accent-300">wanted</span>
+          <span className="whitespace-pre-wrap text-accent-200">{formatValue(expected)}</span>
+        </div>
+        <details className="text-xs text-neutral-400">
+          <summary>Show each difference</summary>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {diffs.map((entry, i) => (
+              <li key={`${entry.path}-${i}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 font-mono text-[12px] leading-[1.6]">
+                <span className="text-neutral-500">{KIND_LABEL[entry.kind]}</span>
+                <span className="min-w-0 break-words text-neutral-300">
+                  {entry.path}
+                  {entry.kind !== 'missing' && <span className="text-neutral-500"> · yours </span>}
+                  {entry.kind !== 'missing' && <span className="text-text">{formatShort(entry.actual, 80)}</span>}
+                  {entry.kind !== 'unexpected' && <span className="text-neutral-500"> · wanted </span>}
+                  {entry.kind !== 'unexpected' && <span className="text-accent-200">{formatShort(entry.expected, 80)}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
       </div>
+      {stale}
+      <Logs logs={outcome.logs} />
+    </>
+  )
+}
 
-      {correct && !isStale && (approach || successHint || solution) && (
-        <div className="border-b">
-          {approach && <p className="px-3 py-2 text-sm text-pretty text-muted-foreground">{approach}</p>}
-          {successHint && (
-            <p className={cn('px-3 pb-2 text-sm text-pretty text-muted-foreground', !approach && 'pt-2')}>{successHint}</p>
-          )}
-          {solution && (
-            <details>
-              <summary className="cursor-pointer px-3 py-2 font-mono text-xs text-muted-foreground hover:text-foreground">
-                Reference
-              </summary>
-              <pre className="overflow-auto px-3 pb-3 font-mono text-xs leading-5 whitespace-pre">{solution}</pre>
-            </details>
-          )}
+function PeekView({
+  groups,
+  dimmed,
+  correct,
+  peekSample,
+  onShowResult,
+}: {
+  groups: PeekGroup[]
+  dimmed: boolean
+  correct: boolean
+  peekSample: string
+  onShowResult: () => void
+}) {
+  return (
+    <>
+      {correct && (
+        <button
+          type="button"
+          onClick={onShowResult}
+          className="flex cursor-pointer items-center gap-2 self-start rounded-lg bg-accent-900 px-2.5 py-[5px] text-xs font-medium text-accent-200 shadow-[inset_0_0_0_1px_var(--color-accent-800)] hover:bg-accent-800"
+        >
+          ✓ Correct · see result
+        </button>
+      )}
+      {groups.length === 0 && (
+        <div className="flex max-w-[520px] flex-col gap-2.5 text-[13px] leading-[1.55] text-neutral-300">
+          <span>
+            See what your code is doing while you type. Click a line number to watch that line, or wrap any value in{' '}
+            <code className="font-mono text-text">peek()</code>. Values show next to the code and here, one row per pass through a loop.
+          </span>
+          <code className="self-start rounded-md bg-bg px-2 py-1 font-mono text-xs text-neutral-200">{peekSample}</code>
         </div>
       )}
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        {!correct && (
-          <div className="border-b">
-            <div className="px-3 pt-3 pb-1.5 font-mono text-xs text-muted-foreground">differences</div>
-            <ul className="mx-3 mb-3 rounded-md border">
-              {diffs.map((entry, i) => (
-                <DiffRow key={`${entry.path}-${i}`} entry={entry} />
+      {dimmed && <span className="text-[11px] text-neutral-500">Showing the last run that compiled</span>}
+      <div className={cn('flex flex-col gap-3.5 transition-opacity', dimmed && 'opacity-50')}>
+        {groups.map((group) => (
+          <div key={`${group.line ?? ''}-${group.label}`} className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2.5 font-mono text-xs">
+              {group.line !== undefined && <span className="text-neutral-500">line {group.line}</span>}
+              <span className="min-w-0 truncate text-accent-300">{group.label === 'return' ? 'return value' : group.label}</span>
+              {group.values.length > 1 && <span className="text-neutral-500">{group.values.length} passes</span>}
+            </div>
+            <div className={cn(MONO_GRID, 'gap-y-0.5')}>
+              {group.values.slice(0, 30).map((value, i) => (
+                <PeekRow key={i} index={group.values.length > 1 ? `#${i + 1}` : ''} value={value} />
               ))}
-            </ul>
+            </div>
           </div>
-        )}
-        <div className={cn('grid min-h-0', !correct && 'md:grid-cols-2 md:divide-x')}>
-          <Pane title="yours">
-            <JsonView value={outcome.value} />
-          </Pane>
-          {!correct && (
-            <Pane title="expected" className="border-t md:border-t-0">
-              <JsonView value={expected} />
-            </Pane>
-          )}
-        </div>
+        ))}
       </div>
-      <Logs logs={outcome.logs} />
-    </div>
+    </>
+  )
+}
+
+function PeekRow({ index, value }: { index: string; value: unknown }) {
+  return (
+    <>
+      <span className="text-neutral-600 tabular-nums">{index}</span>
+      <span className="whitespace-pre-wrap text-neutral-100">{formatValue(value)}</span>
+    </>
   )
 }
