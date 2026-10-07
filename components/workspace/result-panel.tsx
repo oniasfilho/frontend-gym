@@ -97,19 +97,27 @@ function PeekView({ peeks, dimmed }: { peeks: Peek[]; dimmed: boolean }) {
   if (peeks.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
-        <p>Wrap any value to see its shape here while you type:</p>
+        <p>Click a line number to add a breakpoint, or wrap any value to see its shape here while you type:</p>
         <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">
           {'peek(scan)  ·  peek(scan, "after map")  ·  return peek(A.map(...))'}
         </code>
       </div>
     )
   }
+  // A breakpoint inside a loop peeks once per pass, so number repeated labels.
+  const hits = new Map<string, number>()
+  const hitNumbers = peeks.map((p) => {
+    const count = (hits.get(p.label) ?? 0) + 1
+    hits.set(p.label, count)
+    return count
+  })
   return (
     <ol className={cn('flex flex-col transition-opacity', dimmed && 'opacity-50')}>
       {peeks.map((p, i) => (
         <li key={i} className="border-b last:border-b-0">
           <h3 className="flex items-center gap-2 px-3 pt-3 pb-1.5 font-mono text-xs">
             <span className="text-foreground">{p.label}</span>
+            {hits.get(p.label)! > 1 && <span className="text-muted-foreground tabular-nums">{hitNumbers[i]}/{hits.get(p.label)}</span>}
             <span className="text-muted-foreground">{typeName(p.value)}</span>
             {Array.isArray(p.value) && <span className="text-muted-foreground">[{p.value.length}]</span>}
           </h3>
@@ -253,7 +261,8 @@ function ResultView({
           Press <Kbd mod>Enter</Kbd> to run your solution
         </p>
         <p>
-          Wrap a value in <code className="font-mono text-xs text-foreground">peek()</code> to inspect it while you type.
+          Click a line number to add a breakpoint and inspect that line while you type, or wrap a value in{' '}
+          <code className="font-mono text-xs text-foreground">peek()</code>.
         </p>
         <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">{peekSample}</code>
       </div>

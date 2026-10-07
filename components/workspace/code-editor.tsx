@@ -4,8 +4,8 @@ import { useMemo, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { syntaxTree } from '@codemirror/language'
-import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
-import { Prec } from '@codemirror/state'
+import { Decoration, EditorView, GutterMarker, gutter, hoverTooltip, keymap, lineNumbers } from '@codemirror/view'
+import { Prec, RangeSet, StateEffect, StateField } from '@codemirror/state'
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github'
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import { useTheme } from 'next-themes'
@@ -20,12 +20,66 @@ import {
   type Param,
   type Shape,
 } from '@/lib/shape'
+import { breakableLines } from '@/lib/breakpoints'
+
+class BreakpointMarker extends GutterMarker {
+  toDOM() {
+    const dot = document.createElement('span')
+    dot.className = 'cm-breakpoint'
+    return dot
+  }
+}
+
+const breakpointMarker = new BreakpointMarker()
+const toggleBreakpoint = StateEffect.define<number>()
+
+const breakpoints = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(set, tr) {
+    set = set.map(tr.changes)
+    for (const effect of tr.effects) {
+      if (!effect.is(toggleBreakpoint)) continue
+      let present = false
+      set.between(effect.value, effect.value, () => {
+        present = true
+      })
+      set = present ? set.update({ filter: (from) => from !== effect.value }) : set.update({ add: [breakpointMarker.range(effect.value)] })
+    }
+    return set
+  },
+  provide: (field) =>
+    EditorView.decorations.compute([field], (state) => {
+      const lines: number[] = []
+      for (let cursor = state.field(field).iter(); cursor.value; cursor.next()) lines.push(cursor.from)
+      return Decoration.set([...new Set(lines)].map((from) => Decoration.line({ class: 'cm-breakpoint-line' }).range(from)))
+    }),
+})
+
+function breakpointLines(view: EditorView) {
+  const lines = new Set<number>()
+  for (let cursor = view.state.field(breakpoints).iter(); cursor.value; cursor.next()) lines.add(view.state.doc.lineAt(cursor.from).number)
+  return [...lines].sort((a, b) => a - b)
+}
+
+function onGutterClick(view: EditorView, line: { from: number }) {
+  const number = view.state.doc.lineAt(line.from).number
+  let present = false
+  view.state.field(breakpoints).between(line.from, line.from, () => {
+    present = true
+  })
+  if (present || breakableLines(view.state.doc.toString()).has(number)) view.dispatch({ effects: toggleBreakpoint.of(line.from) })
+  return true
+}
 
 const surface = EditorView.theme({
   '&': { height: '100%', fontSize: '13.5px', backgroundColor: 'transparent' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
   '.cm-gutters': { backgroundColor: 'transparent', borderRight: 'none' },
+  '.cm-breakpoint-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', paddingLeft: '6px', cursor: 'pointer' },
+  '.cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
+  '.cm-breakpoint': { width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: 'var(--destructive)' },
+  '.cm-breakpoint-line': { backgroundColor: 'color-mix(in oklab, var(--destructive) 10%, transparent)' },
   '.cm-content': { paddingBlock: '12px' },
   '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'color-mix(in oklab, var(--muted) 60%, transparent)' },
   '.cm-tooltip': {
@@ -58,6 +112,8 @@ export function CodeEditor({
   onRun,
   onNext,
   onBeautify,
+  breakpoints: initialBreakpoints,
+  onBreakpointsChange,
   params,
 }: {
   value: string
@@ -65,11 +121,14 @@ export function CodeEditor({
   onRun: () => void
   onNext: () => void
   onBeautify: () => void
+  /** Restored when the editor mounts; afterwards the editor owns them and reports changes. */
+  breakpoints: number[]
+  onBreakpointsChange: (lines: number[]) => void
   params: Param[]
 }) {
   const { resolvedTheme } = useTheme()
-  const handlers = useRef({ onRun, onNext, onBeautify })
-  handlers.current = { onRun, onNext, onBeautify }
+  const handlers = useRef({ onRun, onNext, onBeautify, onBreakpointsChange })
+  handlers.current = { onRun, onNext, onBeautify, onBreakpointsChange }
 
   const extensions = useMemo(() => {
     const support = javascript({ typescript: true })
@@ -79,6 +138,21 @@ export function CodeEditor({
       hoverTooltip(shapeHover(params), { hideOnChange: true }),
       Prec.highest(surface),
       EditorView.lineWrapping,
+      breakpoints,
+      gutter({
+        class: 'cm-breakpoint-gutter',
+        markers: (view) => view.state.field(breakpoints),
+        initialSpacer: () => breakpointMarker,
+        domEventHandlers: { mousedown: onGutterClick },
+      }),
+      lineNumbers({ domEventHandlers: { mousedown: onGutterClick } }),
+      EditorView.updateListener.of((update) => {
+        if (update.startState.field(breakpoints) === update.state.field(breakpoints)) return
+        const before = new Set<number>()
+        for (let cursor = update.startState.field(breakpoints).iter(); cursor.value; cursor.next()) before.add(update.startState.doc.lineAt(cursor.from).number)
+        const after = breakpointLines(update.view)
+        if (after.length !== before.size || after.some((line) => !before.has(line))) handlers.current.onBreakpointsChange(after)
+      }),
       Prec.highest(
         keymap.of([
           {
@@ -117,8 +191,10 @@ export function CodeEditor({
       className="h-full"
       autoFocus
       aria-label="Solution editor"
-      basicSetup={{ foldGutter: false, highlightActiveLineGutter: true, tabSize: 2 }}
+      basicSetup={{ foldGutter: false, lineNumbers: false, highlightActiveLineGutter: true, tabSize: 2 }}
       onCreateEditor={(view) => {
+        const restore = initialBreakpoints.filter((line) => line <= view.state.doc.lines)
+        if (restore.length) view.dispatch({ effects: restore.map((line) => toggleBreakpoint.of(view.state.doc.line(line).from)) })
         const doc = view.state.doc.toString()
         const signature = doc.lastIndexOf('function solve')
         const brace = doc.indexOf('{\n', signature)

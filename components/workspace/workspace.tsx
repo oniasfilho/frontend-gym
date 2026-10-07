@@ -34,6 +34,8 @@ type MobilePane = 'inputs' | 'code' | 'output'
 type InputSide = 'A' | 'B'
 type Overrides = Record<string, { A?: unknown; B?: unknown }>
 
+const NO_BREAKPOINTS: number[] = []
+
 export function Workspace() {
   const progress = useProgress(allExercises.length)
   const { drafts, view, hydrated, setIndex, selectPath, openSummary, setDraft, resetDraft, resetAll, markSolved, isSolved } = progress
@@ -57,6 +59,12 @@ export function Workspace() {
   const [formatError, setFormatError] = useState<string | null>(null)
   const [curriculumView, setCurriculumView] = useState<CurriculumView | null>({ kind: 'dashboard' })
   const [commandOpen, setCommandOpen] = useState(false)
+  // Breakpoints belong to the open exercise only; switching exercises clears them.
+  const [breakpointState, setBreakpointState] = useState({ id: exercise.id, lines: NO_BREAKPOINTS })
+  if (breakpointState.id !== exercise.id) setBreakpointState({ id: exercise.id, lines: NO_BREAKPOINTS })
+  const breakpoints = breakpointState.id === exercise.id ? breakpointState.lines : NO_BREAKPOINTS
+  const breakpointsRef = useRef(breakpoints)
+  breakpointsRef.current = breakpoints
   const runId = useRef(0)
   const liveTimer = useRef<number | undefined>(undefined)
   const formatting = useRef(false)
@@ -91,7 +99,7 @@ export function Workspace() {
       window.clearTimeout(liveTimer.current)
       const id = ++runId.current
       if (!live) setRun({ status: 'running' })
-      const outcome = await runSolution(source, valueA, valueB)
+      const outcome = await runSolution(source, valueA, valueB, breakpointsRef.current)
       if (id !== runId.current) return
       if (expectedResult.error) {
         setRun({
@@ -128,6 +136,22 @@ export function Workspace() {
       }, 350)
     },
     [exercise.id, runSource, setDraft],
+  )
+
+  const changeBreakpoints = useCallback(
+    (lines: number[]) => {
+      const current = breakpointsRef.current
+      if (lines.length === current.length && lines.every((line, i) => line === current[i])) return
+      breakpointsRef.current = lines
+      setBreakpointState({ id: exerciseIdRef.current, lines })
+      // Edits can move breakpoints before the new code reaches codeRef, so read it once that has settled.
+      window.clearTimeout(liveTimer.current)
+      liveTimer.current = window.setTimeout(() => {
+        const source = codeRef.current
+        if (canCompile(source)) void runSource(source, { live: true })
+      })
+    },
+    [runSource],
   )
 
   const beautify = useCallback(async () => {
@@ -415,6 +439,8 @@ export function Workspace() {
             onRun={() => void execute()}
             onNext={next}
             onBeautify={() => void beautify()}
+            breakpoints={breakpoints}
+            onBreakpointsChange={changeBreakpoints}
           />
         )}
       </div>
