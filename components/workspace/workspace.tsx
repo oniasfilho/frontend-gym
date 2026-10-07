@@ -24,6 +24,7 @@ import { ValueBlock } from './data-panel'
 import { Home } from './home'
 import { JumpPalette, type JumpItem } from './jump-palette'
 import { Shortcut, useIsMac, useKeys } from './kbd'
+import { PracticeLayout } from './practice-layout'
 import { OutputPanel, type OutputTab, type RunState } from './result-panel'
 import { TopBar, type ExerciseLink } from './top-bar'
 
@@ -527,135 +528,137 @@ export function Workspace() {
   const nextHint = canAdvance ? `${keys.enter} ${lastExercise ? 'finish path' : 'next exercise'}` : ''
   const primaryLabel = canAdvance ? (lastExercise ? 'Finish path' : 'Next') : 'Run'
 
+  const exerciseBlock = (
+    <section aria-label="Exercise" className="flex flex-[1_0_auto] flex-col gap-[18px] py-2 pr-2 pl-1">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-[25px]">{exercise.title}</h1>
+          {solvedNow && <Badge>Solved</Badge>}
+        </div>
+        <p className="text-[15px] leading-[1.6] text-pretty text-neutral-200">{exercise.prompt}</p>
+      </div>
+      <ValueBlock
+        key={`${exercise.id}-A`}
+        label={exercise.labels.A}
+        value={valueA}
+        editable
+        dirty={Boolean(override && 'A' in override)}
+        onValueChange={(value) => updateInput('A', value)}
+        onRestore={() => clearInput('A')}
+      />
+      {exercise.B !== null && (
+        <ValueBlock
+          key={`${exercise.id}-B`}
+          label={exercise.labels.B}
+          value={valueB}
+          editable
+          dirty={Boolean(override && 'B' in override)}
+          onValueChange={(value) => updateInput('B', value)}
+          onRestore={() => clearInput('B')}
+        />
+      )}
+      {showExpected ? (
+        <ValueBlock label="expected" value={expectedResult.value} expected notice={expectedResult.error} onHide={() => setShowExpected(false)} />
+      ) : (
+        <Button variant="quiet" size="xs" className="-ml-1.5 self-start" onClick={() => setShowExpected(true)}>
+          Show expected
+        </Button>
+      )}
+      <details className="mt-auto text-xs text-neutral-400">
+        <summary>Learning constraints</summary>
+        <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 leading-[1.6]">
+          <dt className="text-neutral-500">Focus</dt>
+          <dd className="font-mono text-neutral-200">{mixed ? focus : `${focus}()`}</dd>
+          {!mixed && (
+            <>
+              <dt className="text-neutral-500">Approach</dt>
+              <dd>Use {focus}() as the primary transformation mechanism.</dd>
+            </>
+          )}
+          <dt className="text-neutral-500">Allowed</dt>
+          <dd className="font-mono">{['property access', 'boolean expressions', ...support].join(' · ')}</dd>
+          {!mixed && (
+            <>
+              <dt className="text-neutral-500">Avoid here</dt>
+              <dd className="font-mono">reduce() · Object.entries() · Object.fromEntries()</dd>
+            </>
+          )}
+        </dl>
+      </details>
+    </section>
+  )
+  const editorBlock = (
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] bg-surface transition-shadow duration-300',
+        runMatches
+          ? 'shadow-[0_0_0_1px_var(--color-accent),0_0_40px_-12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]'
+          : 'shadow-[0_0_0_1px_var(--color-neutral-800)]',
+      )}
+    >
+      <div className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-400">
+        <span className="min-w-0 truncate">
+          <span className="text-text">solve</span>({exercise.labels.A}, {exercise.labels.B})
+        </span>
+        <span className="ml-auto hidden font-sans text-[11px] whitespace-nowrap text-neutral-500 sm:inline" role={formatError ? 'alert' : undefined} title={formatError ?? undefined}>
+          {isFormatting ? 'Formatting…' : formatError ? <span className="text-neutral-300">Couldn&apos;t format</span> : 'Click a line number to watch it'}
+        </span>
+        {exercise.declarations && (
+          <Button variant="quiet" size="xs" className={cn('ml-auto sm:ml-0', typesVisible && 'bg-text/7 text-text')} aria-pressed={typesVisible} onClick={toggleTypes}>
+            Types
+          </Button>
+        )}
+        <Button variant="quiet" size="xs" className={cn(!exercise.declarations && 'ml-auto sm:ml-0')} disabled={code === exercise.starter} onClick={resetSolution}>
+          Reset
+        </Button>
+      </div>
+      <div className="mx-1 mb-1 min-h-0 flex-1 overflow-hidden rounded-[7px] bg-bg">
+        <CodeEditor
+          key={exercise.id}
+          value={code}
+          params={exercise.params}
+          onChange={handleChange}
+          onPrimary={primary}
+          onNext={next}
+          onBeautify={() => void beautify()}
+          breakpoints={breakpoints}
+          onBreakpointsChange={changeBreakpoints}
+          ghosts={ghosts}
+          watchShortcut={keys.dot}
+          onReady={onEditorReady}
+        />
+      </div>
+    </div>
+  )
+  const outputBlock = (
+    <OutputPanel
+      className="min-h-0 flex-1"
+      ref={outputRef}
+      tab={tab}
+      onTab={setTab}
+      state={run}
+      expected={expectedResult.value}
+      correct={runMatches}
+      isStale={isStale}
+      approach={exercise.approach}
+      solution={exercise.solution}
+      successTitle={hasOverride ? 'Matches these inputs' : 'Correct'}
+      successHint={hasOverride && !solvedNow ? 'Restore the sample to record this exercise.' : undefined}
+      nextHint={nextHint}
+      focus={focus}
+      focusViolation={focusViolation}
+      groups={groups}
+      peekCount={peekCount}
+      dimmed={peekState.dimmed}
+      peekSample={`peek(${exercise.labels.A})  ·  peek(value, "doubled")`}
+    />
+  )
+
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto]">
       <TopBar pathName={activePath.name} position={index} exercises={links} onHome={goHome} onJump={() => setPaletteOpen(true)} onSelect={goTo} />
 
-      <main ref={stageRef} className="grid min-h-0 grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4 overflow-auto p-4">
-        {/* Scrolls on its own beside the editor (two columns from 728px); stacked, the page scrolls. */}
-        <section aria-label="Exercise" className="flex flex-col gap-[18px] py-2 pr-2 pl-1 min-[728px]:min-h-0 min-[728px]:overflow-auto">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[25px]">{exercise.title}</h1>
-              {solvedNow && <Badge>Solved</Badge>}
-            </div>
-            <p className="text-[15px] leading-[1.6] text-pretty text-neutral-200">{exercise.prompt}</p>
-          </div>
-          <ValueBlock
-            key={`${exercise.id}-A`}
-            label={exercise.labels.A}
-            value={valueA}
-            editable
-            dirty={Boolean(override && 'A' in override)}
-            onValueChange={(value) => updateInput('A', value)}
-            onRestore={() => clearInput('A')}
-          />
-          {exercise.B !== null && (
-            <ValueBlock
-              key={`${exercise.id}-B`}
-              label={exercise.labels.B}
-              value={valueB}
-              editable
-              dirty={Boolean(override && 'B' in override)}
-              onValueChange={(value) => updateInput('B', value)}
-              onRestore={() => clearInput('B')}
-            />
-          )}
-          {showExpected ? (
-            <ValueBlock label="expected" value={expectedResult.value} expected notice={expectedResult.error} onHide={() => setShowExpected(false)} />
-          ) : (
-            <Button variant="quiet" size="xs" className="-ml-1.5 self-start" onClick={() => setShowExpected(true)}>
-              Show expected
-            </Button>
-          )}
-          <details className="mt-auto text-xs text-neutral-400">
-            <summary>Learning constraints</summary>
-            <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 leading-[1.6]">
-              <dt className="text-neutral-500">Focus</dt>
-              <dd className="font-mono text-neutral-200">{mixed ? focus : `${focus}()`}</dd>
-              {!mixed && (
-                <>
-                  <dt className="text-neutral-500">Approach</dt>
-                  <dd>Use {focus}() as the primary transformation mechanism.</dd>
-                </>
-              )}
-              <dt className="text-neutral-500">Allowed</dt>
-              <dd className="font-mono">{['property access', 'boolean expressions', ...support].join(' · ')}</dd>
-              {!mixed && (
-                <>
-                  <dt className="text-neutral-500">Avoid here</dt>
-                  <dd className="font-mono">reduce() · Object.entries() · Object.fromEntries()</dd>
-                </>
-              )}
-            </dl>
-          </details>
-        </section>
-
-        <section aria-label="Solution" className="flex min-h-[420px] flex-col gap-3">
-          <div
-            className={cn(
-              'flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-[10px] bg-surface transition-shadow duration-300',
-              runMatches
-                ? 'shadow-[0_0_0_1px_var(--color-accent),0_0_40px_-12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]'
-                : 'shadow-[0_0_0_1px_var(--color-neutral-800)]',
-            )}
-          >
-            <div className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-400">
-              <span className="min-w-0 truncate">
-                <span className="text-text">solve</span>({exercise.labels.A}, {exercise.labels.B})
-              </span>
-              <span className="ml-auto hidden font-sans text-[11px] whitespace-nowrap text-neutral-500 sm:inline" role={formatError ? 'alert' : undefined} title={formatError ?? undefined}>
-                {isFormatting ? 'Formatting…' : formatError ? <span className="text-neutral-300">Couldn&apos;t format</span> : 'Click a line number to watch it'}
-              </span>
-              {exercise.declarations && (
-                <Button variant="quiet" size="xs" className={cn('ml-auto sm:ml-0', typesVisible && 'bg-text/7 text-text')} aria-pressed={typesVisible} onClick={toggleTypes}>
-                  Types
-                </Button>
-              )}
-              <Button variant="quiet" size="xs" className={cn(!exercise.declarations && 'ml-auto sm:ml-0')} disabled={code === exercise.starter} onClick={resetSolution}>
-                Reset
-              </Button>
-            </div>
-            <div className="mx-1 mb-1 min-h-0 flex-1 overflow-hidden rounded-[7px] bg-bg">
-              <CodeEditor
-                key={exercise.id}
-                value={code}
-                params={exercise.params}
-                onChange={handleChange}
-                onPrimary={primary}
-                onNext={next}
-                onBeautify={() => void beautify()}
-                breakpoints={breakpoints}
-                onBreakpointsChange={changeBreakpoints}
-                ghosts={ghosts}
-                watchShortcut={keys.dot}
-                onReady={onEditorReady}
-              />
-            </div>
-          </div>
-
-          <OutputPanel
-            ref={outputRef}
-            tab={tab}
-            onTab={setTab}
-            state={run}
-            expected={expectedResult.value}
-            correct={runMatches}
-            isStale={isStale}
-            approach={exercise.approach}
-            solution={exercise.solution}
-            successTitle={hasOverride ? 'Matches these inputs' : 'Correct'}
-            successHint={hasOverride && !solvedNow ? 'Restore the sample to record this exercise.' : undefined}
-            nextHint={nextHint}
-            focus={focus}
-            focusViolation={focusViolation}
-            groups={groups}
-            peekCount={peekCount}
-            dimmed={peekState.dimmed}
-            peekSample={`peek(${exercise.labels.A})  ·  peek(value, "doubled")`}
-          />
-        </section>
-      </main>
+      <PracticeLayout stageRef={stageRef} exercise={exerciseBlock} editor={editorBlock} output={outputBlock} />
 
       <footer className="rule-t flex items-center gap-2 px-4 py-2.5">
         <div className="hidden gap-4 text-xs whitespace-nowrap text-neutral-500 lg:flex">

@@ -56,6 +56,7 @@ function Logs({ logs }: { logs: string[] }) {
 
 export function OutputPanel({
   ref,
+  className,
   tab,
   onTab,
   state,
@@ -75,6 +76,7 @@ export function OutputPanel({
   peekSample,
 }: {
   ref?: Ref<HTMLDivElement>
+  className?: string
   tab: OutputTab
   onTab: (tab: OutputTab) => void
   state: RunState
@@ -100,7 +102,7 @@ export function OutputPanel({
   const resultDot = correct ? 'bg-accent' : failed ? 'bg-neutral-300' : 'bg-neutral-600'
 
   return (
-    <div ref={ref} className="flex h-[38%] min-h-[170px] flex-none flex-col overflow-hidden rounded-[10px] bg-surface">
+    <div ref={ref} className={cn('flex flex-col overflow-hidden rounded-[10px] bg-surface', className)}>
       <div role="tablist" aria-label="Output" className="rule-b flex flex-none items-center gap-0.5 px-2 pt-1.5">
         <TabButton active={tab === 'result'} onClick={() => onTab('result')}>
           <Dot className={resultDot} />
