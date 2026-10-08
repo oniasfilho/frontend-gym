@@ -63,6 +63,7 @@ function isLookup(value: Record<string, unknown>) {
 export function inferShape(value: unknown): Shape {
   if (value === null) return { kind: 'null' }
   if (Array.isArray(value)) return { kind: 'array', element: mergeShapes(value.map(inferShape)) }
+  if (value instanceof Map) return { kind: 'record', value: mergeShapes([...value.values()].map(inferShape)) }
   switch (typeof value) {
     case 'string':
       return { kind: 'string' }
