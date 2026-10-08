@@ -38,7 +38,8 @@ const definitions: Array<[PathSlug, string, string]> = [
   ['object-from-entries', 'Object.fromEntries', 'Build objects from entry pairs.'],
   ['optional-chaining', 'optional chaining', 'Safely access nullable structures.'],
   ['nullish-coalescing', 'nullish coalescing', 'Fallback only for nullish values.'],
-  ['mixed', 'Mixed Practice', 'Choose and combine previously learned concepts.'],
+  ['sliding-window', 'Sliding window', 'Maintain a moving range of values and update its state one edge at a time.'],
+  ['mixed', 'Mixed Practice','Choose and combine previously learned concepts.'],
 ]
 
 export const conceptPaths: ConceptPath[] = definitions.map(([slug, name, description]) => {
